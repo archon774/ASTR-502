@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Optional, Tuple
-#r = ezpadova.get_isochrones(logage=(6, 7, 0.1), MH=(0, 0, 0), photsys_file='gaiaEDR3')
 
 class IsochroneFetcher:
     def __init__(self,
@@ -76,16 +75,16 @@ class IsochronePlotter:
     def __init__(self, fetcher: IsochroneFetcher):
         self.fetcher = fetcher
 
-    def plot(self, logage1, MH1, logage2, MH2, labels=('A','B')):
+    def plot(self, logage1, MH1, labels=('A','B')):
 
 
         df1 = self.fetcher.fetch(logage1, MH1)
-        df2 = self.fetcher.fetch(logage2, MH2)
+        #df2 = self.fetcher.fetch(logage2, MH2)
         c1, m1, _ = self.fetcher.photometry(df1)
-        c2, m2, _ = self.fetcher.photometry(df2)
+        #c2, m2, _ = self.fetcher.photometry(df2)
 
         plt.plot(c1, m1, '.', ms=4, color='C0', label=f'{labels[0]}')
-        plt.plot(c2, m2, '.', ms=4, color='C1', label=f'{labels[1]}')
+        #plt.plot(c2, m2, '.', ms=4, color='C1', label=f'{labels[1]}')
         plt.gca().invert_yaxis()
         plt.xlabel('BP-RP')
         plt.ylabel('G (mag)')
@@ -97,20 +96,20 @@ class IsochronePlotter:
 
 
 
-#initialize fetcher and plotter
-fetcher = IsochroneFetcher(photsys='gaiaEDR3', step_age=0.1, step_mh=0.1)
-plotter= IsochronePlotter(fetcher)
-
-#1 ) The 1 Gyr vs. 5 Gyr Isochrones (log10 ages)
-age1_log = np.log10(1e9) #9.0
-age5_log = np.log10(5e9) #9.7ish
-fig = plotter.plot(age1_log, 0.0, age5_log, 0.0, labels=('1 Gyr', '5 Gyr'))
-fig.suptitle('Isochrones at 1 Gyr and 5 Gyr, [M/H]=0.0')
-plt.show()
-
-#2 )  0.0 isochrone vs. a [Fe/H] = -0.5 isochrone
-
-age_log = age5_log #just picking a fixed age
-fig2 = plotter.plot(age_log, 0.0, age_log, -0.5, labels=('[Fe/H]=0.0', '[Fe/H]=-0.5'))
-fig2.suptitle('Metallicity effect on 5 Gyr Isochrone')
-plt.show()
+# #initialize fetcher and plotter
+# fetcher = IsochroneFetcher(photsys='gaiaEDR3', step_age=0.1, step_mh=0.1)
+# plotter= IsochronePlotter(fetcher)
+#
+# #1 ) The 1 Gyr vs. 5 Gyr Isochrones (log10 ages)
+# age1_log = np.log10(1e9) #9.0
+# age5_log = np.log10(5e9) #9.7ish
+# fig = plotter.plot(age1_log, 0.0, age5_log, 0.0, labels=('1 Gyr', '5 Gyr'))
+# fig.suptitle('Isochrones at 1 Gyr and 5 Gyr, [M/H]=0.0')
+# plt.show()
+#
+# #2 )  0.0 isochrone vs. a [Fe/H] = -0.5 isochrone
+#
+# age_log = age5_log #just picking a fixed age
+# fig2 = plotter.plot(age_log, 0.0, age_log, -0.5, labels=('[Fe/H]=0.0', '[Fe/H]=-0.5'))
+# fig2.suptitle('Metallicity effect on 5 Gyr Isochrone')
+# plt.show()
