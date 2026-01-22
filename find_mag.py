@@ -3,27 +3,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
+from typing import Optional, Iterable
 
-def _get_distance_pc(star, distance_pc=None):
-    if distance_pc is not None:
-        return float(distance_pc)
 
-    for k in ('distance_pc', 'st_dist'):
-        if star.get(k) is not None:
-            return float(star[k])
+GAIA_G_CANDS = ['sy_gmag', 'sy_g', 'G', 'g', 'gmag', 'phot_g_mean_mag', 'g_band']
+GAIA_BP_CANDS = ['sy_bpmag', 'sy_bp', 'BP', 'bp', 'bpmag', 'phot_bp_mean_mag']
+GAIA_RP_CANDS = ['sy_rpmag', 'sy_rp', 'RP', 'rp', 'rpmag', 'phot_rp_mean_mag']
+PARALLAX_CANDS = ['parallax', 'plx', 'parallax_mas']
+DIST_CANDS = ['distance_pc', 'distance', 'st_dist', 'dist', 'bj_dist_pc']
 
-    #parallax in mas to distance in pc
-
-    for k in ('parallax', 'st_parallax'):
-        if star.get(k) is not None:
-            plx = float(star[k])
-            if plx > 0:
-                return 1000.0 / plx
-
-    raise ValueError('Could not find distance_pc')
-
-def _abs_mag(apparent_mag, distance_pc):
-    return float(apparent_mag) - 5.0 * np.log10(distance_pc) + 5.0
 
 def _find_col(df: pd.DataFrame, candidates):
     for cand in candidates:
@@ -32,85 +20,75 @@ def _find_col(df: pd.DataFrame, candidates):
                 return c
     return None
 
-def _find_best_model(iso_df: pd.DataFrame, star: dict):
-
-    teff_cands = ['teff', 'teff_k', 'teff_eff']
-    logg_cands = ['logg', 'log_g']
-    mh_cands = ['mh', 'met', 'feh', '[m/h]', '[fe/h]']
-
-    teff_col = _find_col(iso_df, teff_cands)
-    logg_col = _find_col(iso_df, logg_cands)
-    mh_col = _find_col(iso_df, mh_cands)
-
-    obs = {}
-    if star.get('st_teff') is not None and teff_col is not None:
-        obs['teff'] = (float(star['st_teff']), teff_col)
-    if star.get('st_logg') is not None and logg_col is not None:
-        obs['logg'] = (float(star['st_logg']), logg_col)
-    for k in ('st_met', 'st_mh', 'st_feh'):
-        if star.get(k) is not None and mh_col is not None:
-            obs['mh'] = (float(star[k]), mh_col)
-            break
-
-    if not obs:
-        return None
-
-    # normalization scales so differences are comparable
-    scales = {'teff': 500.0, 'logg': 1.0, 'mh': 0.5}
-
-    best_idx = None
-    best_dist = np.inf
-    n = len(iso_df)
-    for i in range(n):
-        ssd = 0.0
-        valid = True
-        for key, (obs_val, col) in obs.items():
-            try:
-                model_val = iso_df.iloc[i][col]
-                if pd.isna(model_val):
-                    valid = False
-                    break
-                diff = float(model_val) - float(obs_val)
-                ssd += (diff / scales.get(key, 1.0)) ** 2
-            except Exception:
-                valid = False
-                break
-        if valid and ssd < best_dist:
-            best_dist = ssd
-            best_idx = i
-
-    if best_idx is None:
-        return None
-    return iso_df.iloc[best_idx]
-
-def plot_star(csv_path, fetcher: IsochroneFetcher, plotter: IsochronePlotter, age=None, MH=None, label='Star'):
-
-    csv_path = Path(csv_path)
-    star = parse_star_csv(csv_path)
-
-    if age is None:
-        if star.get('st_age') is not None:
-            age = float(star['st_age'])
-        else:
-            raise ValueError('No age provided and star age not found in CSV')
-        if MH is None and star.get('st_met') is not None:
-            MH = float(star['st_met'])
-        if MH is None:
-            MH = 0.0
-            print("No MH provided, defaulting to 0.0")
-
-    iso_df = fetcher.fetch(age, MH)
-
-    #plot the isochrone
-    fig = plotter.plot(age, MH, labels='Isochrone')
-
-    #try to find a model that matches the star
-    model = _find_best_model(iso_df, star)
-    if model is None:
-        raise ValueError('No model provided for star comparison')
-
-
-
-def parse_star_csv(csv_path: Path):
-    #build this to extract magnitudes and stellar parameters from a CSV file (waiting for other team)
+def _join_key(df1: pd.DataFrame,
+              df2: pd.DataFrame,
+              extra_candidates=None) -> Optional[str]:
+    common = set(df1.columns).intersection(df2.columns)
+    if common:
+        for pref in ('source_id', 'id', 'star_id', 'obj_id', 'object_id'):
+            if pref in common:
+                return pref
+        return sorted(common)[0]
+    candidates = list(extra_candidates or []) + ['source_id','id','star_id','name','objid','gaia_source_id','sourceid']
+    for cand in candidates:
+        if cand in df1.columns and cand in df2.columns:
+            return cand
     return None
+
+
+def _abs_mag_series(apparent: pd.Series, distance_pc: pd.Series) -> pd.Series:
+    # apparent may be non-numeric -> coerce; distance must be positive
+    a = pd.to_numeric(apparent, errors='coerce')
+    d = pd.to_numeric(distance_pc, errors='coerce')
+    valid = d > 0
+    abs_mag = pd.Series(np.nan, index=a.index, dtype=float)
+    abs_mag[valid] = a[valid] - 5.0 * np.log10(d[valid]) + 5.0
+    return abs_mag
+
+
+def join_photometry_and_distances(phot_csv: Path | str,
+                                  dist_csv: Path | str,
+                                  on: Optional[str] = None,
+                                  how: str = 'inner') -> pd.DataFrame:
+    phot_df = pd.read_csv(phot_csv)
+    dist_df = pd.read_csv(dist_csv)
+
+    if on is None:
+        on = _join_key(phot_df, dist_df)
+        if on is None:
+            raise ValueError('Could not find a join key. Provide a func')
+
+    joined = phot_df.merge(dist_df, on=on, how=how, suffixes=('_phot', '_dist'))
+        # compute distance_pc (add/overwrite column named distance_pc)
+
+        # locate Gaia columns in the merged frame (photometry file likely contains these)
+    g_col = _find_col(joined, GAIA_G_CANDS)
+    bp_col = _find_col(joined, GAIA_BP_CANDS)
+    rp_col = _find_col(joined, GAIA_RP_CANDS)
+
+
+        # compute absolute mags where possible
+    if g_col is not None:
+            joined['G_abs'] = _abs_mag_series(joined[g_col], joined['distance_pc'])
+    else:
+        joined['G_abs'] = np.nan
+
+    if bp_col is not None:
+        joined['BP_abs'] = _abs_mag_series(joined[bp_col], joined['distance_pc'])
+    else:
+        joined['BP_abs'] = np.nan
+
+    if rp_col is not None:
+        joined['RP_abs'] = _abs_mag_series(joined[rp_col], joined['distance_pc'])
+    else:
+        joined['RP_abs'] = np.nan
+
+        # convenience color column
+    if 'BP_abs' in joined.columns and 'RP_abs' in joined.columns:
+        joined['BP_RP_abs'] = joined['BP_abs'] - joined['RP_abs']
+    return joined
+
+phot_csv = '/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Master_Photometry_List.csv'
+dist_csv = '/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Mega_Target_List.csv'
+df = join_photometry_and_distances(phot_csv, dist_csv)
+
