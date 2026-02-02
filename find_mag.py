@@ -106,6 +106,6 @@ fetcher = IsochroneFetcher(photsys='gaiaEDR3', step_age=0.1, step_mh=0.1)
 plotter= IsochronePlotter(fetcher)
 plot(df)
 
-fig = plotter.plot(np.log(1e4), 0.0, label='Isochrone')
+fig = plotter.plot(np.log10(1e9), 0.0, label='Isochrone')
 plt.legend()
 plt.show()
