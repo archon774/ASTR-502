@@ -15,6 +15,7 @@ asdf_coordinates_schemas==0.4.0
 asdf_standard==1.4.0
 asdf_transform_schemas==0.6.0
 asdf_wcs_schemas==0.5.0
+asteca==0.6.1
 astropy==7.2.0
 astropy-iers-data==0.2026.1.5.0.43.43
 astroquery==0.4.11
@@ -41,6 +42,8 @@ defusedxml==0.7.1
 dynesty==3.0.0
 emcee==3.1.6
 executing==2.2.1
+ezpadova @ git+https://github.com/mfouesneau/ezpadova@f39625883e22a619b180c73b290a46a2a137f05e
+fast-histogram==0.14
 fastjsonschema==2.21.2
 fbpca==1.0
 fonttools==4.61.1
@@ -107,9 +110,10 @@ nest-asyncio==1.6.0
 notebook==7.5.1
 notebook_shim==0.2.4
 numexpr==2.14.1
-numpy==2.4.0
+numpy==2.3.5
 packaging==25.0
 pandas==2.3.3
+pandas-stubs==2.3.3.251219
 pandocfilters==1.5.1
 parso==0.8.5
 patsy==1.0.2
@@ -158,6 +162,7 @@ tinycss2==1.4.0
 tornado==6.5.4
 tqdm==4.67.1
 traitlets==5.14.3
+types-pytz==2025.2.0.20251108
 typing_extensions==4.15.0
 tzdata==2025.3
 uncertainties==3.2.3

@@ -300,14 +300,6 @@ def interpolate_targets(phot_csv: str,
     return interpolate_catalog(merged, model_df, mag_cols=mag_cols, prefer=prefer, prefix=prefix)
 
 
-__all__ = [
-    "IsochroneInterpolator",
-    "build_isochrone_grid",
-    "interpolate_catalog",
-    "interpolate_targets",
-    "brute_force",
-]
-
 df = interpolate_targets(
     phot_csv = '/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Master_Photometry_List.csv',
     dist_csv = '/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Mega_Target_List.csv',
@@ -320,3 +312,11 @@ plt.xlabel('log10(Age)')
 plt.ylabel('Mass')
 plt.title('Interpolated Stellar Parameters')
 plt.show()
+
+__all__ = [
+    "IsochroneInterpolator",
+    "build_isochrone_grid",
+    "interpolate_catalog",
+    "interpolate_targets",
+    "brute_force",
+]
