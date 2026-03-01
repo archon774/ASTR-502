@@ -170,7 +170,7 @@ def fit_isochrone_section_to_targets(
 
 def fit_spot_grid_to_targets(
     targets_df: pd.DataFrame,
-    spot_iso_files: Iterable[str | Path],
+    spot_iso_files: str | Path | Iterable[str | Path],
     sigma_mag: float = 0.05,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Fit every SPOT age section from every metallicity file to target data."""
@@ -178,7 +178,12 @@ def fit_spot_grid_to_targets(
     best_eval: pd.DataFrame | None = None
     best_ll = float("-inf")
 
-    for iso_file in spot_iso_files:
+    if isinstance(spot_iso_files, (str, Path)):
+        iso_files = [spot_iso_files]
+    else:
+        iso_files = list(spot_iso_files)
+
+    for iso_file in iso_files:
         metallicity = _extract_metallicity_from_path(iso_file)
         sections = SPOT(str(iso_file)).read_iso_file()
 
@@ -292,7 +297,7 @@ def plot_fitted_model_against_targets(
 def test_fit_and_plot(
     phot_csv: str | Path,
     dist_csv: str | Path,
-    spot_iso_files: Iterable[str | Path],
+    spot_iso_files: str | Path | Iterable[str | Path],
     sigma_mag: float = 0.05,
     save_path: str | Path | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, tuple[plt.Figure, plt.Axes]]:
