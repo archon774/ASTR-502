@@ -21,14 +21,6 @@ from stats import LikelihoodSummary, dataframe_log_likelihood
 logger = logging.getLogger(__name__)
 
 
-def configure_logging(debug: bool = False) -> None:
-    """Configure module logging for scripts and debugging runs."""
-    logging.basicConfig(
-        level=logging.DEBUG if debug else logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
-    )
-    logger.debug("Debug logging enabled")
-
 
 @dataclass(frozen=True)
 class IsochroneFitResult:
@@ -458,38 +450,16 @@ def test_fit_and_plot(
     )
     return results_df, best_eval_df, fig_ax
 
-def _build_cli_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Fit SPOT isochrones and optionally plot the best fit.")
-    parser.add_argument("--phot-csv", required=True, help="Path to master photometry CSV")
-    parser.add_argument("--dist-csv", required=True, help="Path to distance/target CSV")
-    parser.add_argument(
-        "--spot-iso-glob",
-        required=True,
-        help="Glob pattern for SPOT .isoc files (example: 'isochrones/SPOTS/isos/*.isoc')",
-    )
-    parser.add_argument("--sigma-mag", type=float, default=0.05, help="Magnitude uncertainty")
-    parser.add_argument("--save-path", default=None, help="Optional output path for diagnostic plot")
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Enable debug logging output to diagnose fitting failures",
-    )
-    return parser
-
 
 if __name__ == "__main__":
-    args = _build_cli_parser().parse_args()
-    configure_logging(debug=args.debug)
-
-    iso_files = glob.glob(args.spot_iso_glob)
-    logger.info("Resolved %d SPOT file(s) from glob '%s'", len(iso_files), args.spot_iso_glob)
-    if args.debug:
-        logger.debug("Resolved SPOT files: %s", iso_files)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        force=True,
+    )
 
     test_fit_and_plot(
-        phot_csv=args.phot_csv,
-        dist_csv=args.dist_csv,
-        spot_iso_files=iso_files,
-        sigma_mag=args.sigma_mag,
-        save_path=args.save_path,
+        phot_csv='/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Master_Photometry_List.csv',
+        dist_csv='/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Mega_Target_List.csv',
+        spot_iso_files=glob.glob('/Users/archon/classes/ASTR_502/workstation/isochrones/SPOTS/isos/*.isoc')
     )
