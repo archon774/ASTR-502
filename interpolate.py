@@ -11,6 +11,7 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.interpolate import interp1d
 
