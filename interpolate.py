@@ -35,12 +35,31 @@ class IsochroneFitResult:
     predicted_mass_median: float
 
 
+def _normalize_col_name(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(name).lower())
+
+
 def _find_col(df: pd.DataFrame, candidates: Iterable[str]) -> str | None:
+    cols = [str(c) for c in df.columns]
+    norm_cols = {_normalize_col_name(c): c for c in cols}
+
+    # 1) exact normalized match
     for cand in candidates:
-        for col in df.columns:
-            if cand.lower() in str(col).lower():
-                return str(col)
+        cand_norm = _normalize_col_name(cand)
+        if cand_norm in norm_cols:
+            return norm_cols[cand_norm]
+
+    # 2) fallback: substring match on normalized names
+    for cand in candidates:
+        cand_norm = _normalize_col_name(cand)
+        for col in cols:
+            if cand_norm and cand_norm in _normalize_col_name(col):
+                return col
     return None
+
+
+def _find_target_name_col(df: pd.DataFrame) -> str | None:
+    return _find_col(df, ["hostname", "host_name", "target", "name"])
 
 
 def _as_numeric(df: pd.DataFrame) -> pd.DataFrame:
@@ -92,6 +111,26 @@ def _build_color_mag_interpolator(
     )
 
 
+def _prepare_isochrone_track(isochrone_df: pd.DataFrame) -> tuple[pd.DataFrame, str | None]:
+    """Normalize one SPOT isochrone section into CMD-friendly columns."""
+    iso = _as_numeric(isochrone_df)
+    iso_bp_col = _find_col(iso, ["g_bp", "bp"])
+    iso_rp_col = _find_col(iso, ["g_rp", "rp"])
+    iso_g_col = _find_col(iso, ["gaia_g", "gmag", "g"])
+    mass_col = _find_col(iso, ["m/m", "mass", "mini", "m_ini", "mact"])
+
+    if not (iso_bp_col and iso_rp_col and iso_g_col):
+        raise ValueError(
+            "Could not identify BP/RP/G columns in SPOT isochrone section; "
+            f"columns were: {list(iso.columns)}"
+        )
+
+    work = iso[[iso_bp_col, iso_rp_col, iso_g_col] + ([mass_col] if mass_col else [])].copy()
+    work["iso_color"] = work[iso_bp_col] - work[iso_rp_col]
+    work["iso_mag"] = work[iso_g_col]
+    return work, mass_col
+
+
 def fit_isochrone_section_to_targets(
     isochrone_df: pd.DataFrame,
     targets_df: pd.DataFrame,
@@ -106,33 +145,26 @@ def fit_isochrone_section_to_targets(
         metallicity_dex,
         sigma_mag,
     )
-    iso = _as_numeric(isochrone_df)
-    targets = _as_numeric(targets_df)
+    targets = targets_df.copy()
 
     # Target photometric columns created by PhotometryMerger.join_photometry_and_distances.
     target_color_col = "BP_RP_abs"
     target_mag_col = "G_abs"
+    target_name_col = _find_target_name_col(targets_df)
 
-    iso_bp_col = _find_col(iso, ["g_bp", "bp"])
-    iso_rp_col = _find_col(iso, ["g_rp", "rp"])
-    iso_g_col = _find_col(iso, ["g", "gmag", "gaia_g"])
-    mass_col = _find_col(iso, ["m/m", "mass", "mini", "m_ini", "mact"])
+    targets[target_color_col] = pd.to_numeric(targets[target_color_col], errors="coerce")
+    targets[target_mag_col] = pd.to_numeric(targets[target_mag_col], errors="coerce")
 
-    if not (iso_bp_col and iso_rp_col and iso_g_col):
+    try:
+        work, mass_col = _prepare_isochrone_track(isochrone_df)
+    except ValueError:
         logger.error(
             "Could not identify BP/RP/G columns for logAge=%.3f [M/H]=%.3f. Columns=%s",
             age_log10_yr,
             metallicity_dex,
-            list(iso.columns),
+            list(isochrone_df.columns),
         )
-        raise ValueError(
-            "Could not identify BP/RP/G columns in SPOT isochrone section; "
-            f"columns were: {list(iso.columns)}"
-        )
-
-    work = iso[[iso_bp_col, iso_rp_col, iso_g_col] + ([mass_col] if mass_col else [])].copy()
-    work["iso_color"] = work[iso_bp_col] - work[iso_rp_col]
-    work["iso_mag"] = work[iso_g_col]
+        raise
 
     interpolator = _build_color_mag_interpolator(work, "iso_color", "iso_mag")
     if interpolator is None:
@@ -150,12 +182,18 @@ def fit_isochrone_section_to_targets(
             predicted_mass_mean=float("nan"),
             predicted_mass_median=float("nan"),
         )
-        empty = pd.DataFrame(columns=[target_color_col, target_mag_col, "iso_mag_pred", "mass_pred"])
+        empty_cols = [target_color_col, target_mag_col, "iso_mag_pred", "mass_pred"]
+        if target_name_col:
+            empty_cols.insert(0, target_name_col)
+        empty = pd.DataFrame(columns=empty_cols)
         summary = LikelihoodSummary(0, float("-inf"), pd.Series(dtype=float))
         return result, summary, empty
 
     mask = targets[target_color_col].notna() & targets[target_mag_col].notna()
-    eval_df = targets.loc[mask, [target_color_col, target_mag_col]].copy()
+    eval_cols = [target_color_col, target_mag_col]
+    if target_name_col and target_name_col in targets.columns:
+        eval_cols = [target_name_col] + eval_cols
+    eval_df = targets.loc[mask, eval_cols].copy()
     eval_df["iso_mag_pred"] = interpolator(eval_df[target_color_col].to_numpy())
 
     ll_summary = dataframe_log_likelihood(
@@ -217,10 +255,11 @@ def fit_spot_grid_to_targets(
     targets_df: pd.DataFrame,
     spot_iso_files: str | Path | Iterable[str | Path],
     sigma_mag: float = 0.05,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Fit every SPOT age section from every metallicity file to target data."""
     results: list[IsochroneFitResult] = []
     best_eval: pd.DataFrame | None = None
+    best_iso_track: pd.DataFrame | None = None
     best_ll = float("-inf")
 
     if isinstance(spot_iso_files, (str, Path)):
@@ -231,7 +270,7 @@ def fit_spot_grid_to_targets(
     logger.info("Preparing to fit SPOT grid for %d isochrone file(s)", len(iso_files))
     if not iso_files:
         logger.warning("No SPOT isochrone files were supplied")
-        return pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     for iso_file in iso_files:
         metallicity = _extract_metallicity_from_path(iso_file)
@@ -291,6 +330,10 @@ def fit_spot_grid_to_targets(
             if fit.log_likelihood > best_ll:
                 best_ll = fit.log_likelihood
                 best_eval = eval_df
+                try:
+                    best_iso_track, _ = _prepare_isochrone_track(section_df)
+                except ValueError:
+                    best_iso_track = None
                 logger.info(
                     "New best fit detected: logAge=%.3f [M/H]=%.3f logL=%.5f",
                     fit.age_log10_yr,
@@ -300,7 +343,7 @@ def fit_spot_grid_to_targets(
 
     if not results:
         logger.warning("No valid SPOT fits were produced across all input files")
-        return pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     finite_count = int(np.isfinite([r.log_likelihood for r in results]).sum())
     logger.info(
@@ -312,7 +355,26 @@ def fit_spot_grid_to_targets(
     results_df = pd.DataFrame([r.__dict__ for r in results]).sort_values(
         "log_likelihood", ascending=False
     )
-    return results_df.reset_index(drop=True), (best_eval if best_eval is not None else pd.DataFrame())
+    return (
+        results_df.reset_index(drop=True),
+        (best_eval if best_eval is not None else pd.DataFrame()),
+        (best_iso_track if best_iso_track is not None else pd.DataFrame()),
+    )
+
+
+def save_best_fit_candidates(
+    best_eval_df: pd.DataFrame,
+    best_age_log10_yr: float,
+    output_dir: str | Path = "results",
+) -> Path:
+    """Write candidate observed/fitted magnitudes for the best-fit isochrone."""
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    safe_age = f"{best_age_log10_yr:.3f}".replace(".", "p")
+    out_path = out_dir / f"spot_best_logage_{safe_age}_candidate_fits.csv"
+    best_eval_df.to_csv(out_path, index=False)
+    logger.info("Wrote best-fit candidate magnitudes to %s", out_path)
+    return out_path
 
 
 def load_targets(phot_csv: str | Path, dist_csv: str | Path) -> pd.DataFrame:
@@ -340,16 +402,15 @@ def plot_fitted_model_against_targets(
     title: str = "Best-fit SPOT isochrone vs target data",
     save_path: str | Path | None = None,
 ) -> tuple[plt.Figure, plt.Axes]:
-    """Plot observed target CMD and fitted model CMD (mag vs BP-RP).
+    """Plot observed targets and best-fit predicted magnitudes on CMD axes.
 
     Parameters
     ----------
     targets_df
         Master target table containing at least ``BP_RP_abs`` and ``G_abs``.
     fitted_eval_df
-        DataFrame returned by ``fit_isochrone_section_to_targets`` or
-        ``fit_spot_grid_to_targets`` best model output. Must contain
-        ``BP_RP_abs`` and ``iso_mag_pred``.
+        Best-fit per-target evaluation table. Must contain ``BP_RP_abs`` and
+        ``iso_mag_pred`` produced from the best ``logAge`` isochrone.
     title
         Plot title.
     save_path
@@ -374,7 +435,6 @@ def plot_fitted_model_against_targets(
     plot_targets = targets_df[[target_color_col, target_mag_col]].copy()
     plot_targets = plot_targets.dropna()
 
-
     plot_fit = fitted_eval_df[[target_color_col, pred_mag_col]].copy()
     plot_fit = plot_fit.dropna().sort_values(target_color_col)
 
@@ -392,7 +452,7 @@ def plot_fitted_model_against_targets(
         plot_fit[pred_mag_col],
         color="tab:red",
         linewidth=2,
-        label="Fitted isochrone",
+        label="Best logAge fit (per target)",
     )
 
 
@@ -416,16 +476,17 @@ def test_fit_and_plot(
     spot_iso_files: str | Path | Iterable[str | Path],
     sigma_mag: float = 0.05,
     save_path: str | Path | None = None,
-) -> tuple[pd.DataFrame, pd.DataFrame, tuple[plt.Figure, plt.Axes]]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, tuple[plt.Figure, plt.Axes], Path]:
     """Test helper: run grid fitting and plot the best fitted model.
 
     Returns
     -------
-    results_df, best_eval_df, (fig, ax)
-        Ranked fit table, evaluated best-fit model table, and matplotlib handles.
+    results_df, best_eval_df, best_isochrone_df, (fig, ax), save_csv
+        Ranked fit table, evaluated best-fit model table, best-fit isochrone track,
+        matplotlib handles, and saved candidate fit CSV path.
     """
     targets_df = load_targets(phot_csv=phot_csv, dist_csv=dist_csv)
-    results_df, best_eval_df = fit_spot_grid_to_targets(
+    results_df, best_eval_df, best_isochrone_df = fit_spot_grid_to_targets(
         targets_df=targets_df,
         spot_iso_files=spot_iso_files,
         sigma_mag=sigma_mag,
@@ -440,6 +501,11 @@ def test_fit_and_plot(
         raise RuntimeError("No valid SPOT fits were produced; cannot generate test plot")
 
     best = results_df.iloc[0]
+    save_csv = save_best_fit_candidates(
+        best_eval_df=best_eval_df,
+        best_age_log10_yr=float(best["age_log10_yr"]),
+        output_dir="results",
+    )
     fig_ax = plot_fitted_model_against_targets(
         targets_df=targets_df,
         fitted_eval_df=best_eval_df,
@@ -449,7 +515,7 @@ def test_fit_and_plot(
         ),
         save_path=save_path,
     )
-    return results_df, best_eval_df, fig_ax
+    return results_df, best_eval_df, best_isochrone_df, fig_ax, save_csv
 
 
 def configure_debug_logging(log_dir: str | Path = "logs") -> Path:
