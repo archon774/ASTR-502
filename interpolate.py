@@ -95,10 +95,10 @@ def _build_color_mag_interpolator(
 def _prepare_isochrone_track(isochrone_df: pd.DataFrame) -> tuple[pd.DataFrame, str | None]:
     """Normalize one SPOT isochrone section into CMD-friendly columns."""
     iso = _as_numeric(isochrone_df)
-    iso_bp_col = _find_col(iso, ["g_bp", "bp"])
-    iso_rp_col = _find_col(iso, ["g_rp", "rp"])
-    iso_g_col = _find_col(iso, ["g", "gmag", "gaia_g"])
-    mass_col = _find_col(iso, ["m/m", "mass", "mini", "m_ini", "mact"])
+    iso_bp_col = _find_col(iso, ["BP_mag"])
+    iso_rp_col = _find_col(iso, ["RP_mag"])
+    iso_g_col = _find_col(iso, ["G_mag"])
+    mass_col = _find_col(iso, ["Mass"])
 
     if not (iso_bp_col and iso_rp_col and iso_g_col):
         raise ValueError(
