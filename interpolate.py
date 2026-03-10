@@ -455,11 +455,12 @@ def plot_fitted_model_against_targets(
         color="black",
         label="Targets",
     )
-    ax.plot(
+    ax.scatter(
         plot_fit[target_color_col],
         plot_fit[pred_mag_col],
+        s=8,
+        alpha=1,
         color="tab:red",
-        linewidth=2,
         label="Best logAge fit (per target)",
     )
 

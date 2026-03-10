@@ -119,4 +119,6 @@ isochrones/SPOTS/tracks
 isochrones/SPOTS/allIsochrones.zip
 
 # local log files
-#logs/
+logs/
+figs/
+results/

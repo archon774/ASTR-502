@@ -78,7 +78,9 @@ class SPOT:
         return sections
 
 #Example usage:
-#dfs = SPOT("isochrones/SPOTS/isos/f000.isoc").read_iso_file()
+dfs = SPOT("isochrones/SPOTS/isos/f000.isoc").read_iso_file()
+for df in dfs:
+    print(df)
 
 
 
