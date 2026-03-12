@@ -66,9 +66,12 @@ def fit_isochrone_section_to_targets(
             "Could not identify BP/RP/G columns for logAge=%.3f [M/H]=%.3f. Columns=%s",
             age_log10_yr,
             metallicity_dex,
-            list(isochrone_df.columns),
+            self.sigma_mag,
         )
-        raise
+        targets = DataFrameUtils.as_numeric(targets_df)
+        host_col = DataFrameUtils.find_col(targets_df, ["hostname"])
+        if host_col and host_col in targets_df.columns:
+            targets["hostname"] = targets_df[host_col]
 
     interpolator = IsochroneUtils.build_color_mag_interpolator(work, "iso_color", "iso_mag")
     if interpolator is None:
@@ -78,13 +81,17 @@ def fit_isochrone_section_to_targets(
             age_log10_yr,
             metallicity_dex,
         )
+
+        self._attach_mass_prediction(eval_df=eval_df, track_df=work, mass_col=mass_col)
         result = IsochroneFitResult(
             age_log10_yr=float(age_log10_yr),
             metallicity_dex=float(metallicity_dex),
-            log_likelihood=float("-inf"),
-            n_used=0,
-            predicted_mass_mean=float("nan"),
-            predicted_mass_median=float("nan"),
+            log_likelihood=ll_summary.log_likelihood,
+            n_used=ll_summary.n_used,
+            predicted_mass_mean=float(pd.to_numeric(eval_df["mass_pred"], errors="coerce").mean()),
+            predicted_mass_median=float(
+                pd.to_numeric(eval_df["mass_pred"], errors="coerce").median()
+            ),
         )
         empty_columns = [target_color_col, target_mag_col, "iso_mag_pred", "mass_pred"]
         if host_col is not None:
@@ -180,56 +187,46 @@ def fit_spot_grid_to_targets(
                 iso_file,
             )
         logger.info(
-            "Loading SPOT isochrone file: %s (detected [M/H]=%.3f)",
-            iso_file,
-            metallicity,
+            "Fit complete for logAge=%.3f [M/H]=%.3f: success=%s, n_used=%d, logL=%.5f, "
+            "mass_mean=%.4f, mass_median=%.4f",
+            age_log10_yr,
+            metallicity_dex,
+            np.isfinite(result.log_likelihood),
+            result.n_used,
+            result.log_likelihood,
+            result.predicted_mass_mean,
+            result.predicted_mass_median,
         )
-        try:
-            sections = SPOT(str(iso_file)).read_iso_file()
-        except Exception:
-            logger.exception("Failed to parse SPOT isochrone file: %s", iso_file)
-            continue
+        return result, ll_summary, eval_df
 
-        if not sections:
-            logger.warning("Isochrone file %s did not produce any age sections", iso_file)
-            continue
+    def fit_spot_grid_to_targets(
+        self,
+        targets_df: pd.DataFrame,
+        spot_iso_files: str | Path | Iterable[str | Path],
+    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """Fit every SPOT age section from every metallicity file to target data."""
+        iso_files = [spot_iso_files] if isinstance(spot_iso_files, (str, Path)) else list(spot_iso_files)
 
-        logger.info("File %s contains %d age sections", iso_file, len(sections))
+        logger.info("Preparing to fit SPOT grid for %d isochrone file(s)", len(iso_files))
+        if not iso_files:
+            logger.warning("No SPOT isochrone files were supplied")
+            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-        for age, section_df in sections.items():
-            logger.info(
-                "Matching targets against isochrone age section: logAge=%s from file %s",
-                age,
-                iso_file,
-            )
+        results: list[IsochroneFitResult] = []
+        best_eval: pd.DataFrame | None = None
+        best_iso_track: pd.DataFrame | None = None
+        best_ll = float("-inf")
+
+        for iso_file in iso_files:
+            metallicity = IsochroneUtils.extract_metallicity_from_path(iso_file)
+            logger.info("Loading SPOT isochrone file: %s (detected [M/H]=%.3f)", iso_file, metallicity)
             try:
-                fit, _, eval_df = fit_isochrone_section_to_targets(
-                    isochrone_df=section_df,
-                    targets_df=targets_df,
-                    age_log10_yr=float(age),
-                    metallicity_dex=metallicity,
-                    sigma_mag=sigma_mag,
-                )
-            except ValueError:
-                logger.warning(
-                    "Failed fit for logAge=%s in %s due to invalid/missing columns",
-                    age,
-                    iso_file,
-                )
+                sections = SPOT(str(iso_file)).read_iso_file()
+            except Exception:
+                logger.exception("Failed to parse SPOT isochrone file: %s", iso_file)
                 continue
 
-            results.append(fit)
-            if not np.isfinite(fit.log_likelihood):
-                logger.debug(
-                    "Discarding non-finite fit score for logAge=%.3f [M/H]=%.3f (n_used=%d)",
-                    fit.age_log10_yr,
-                    fit.metallicity_dex,
-                    fit.n_used,
-                )
-
-            if fit.log_likelihood > best_ll:
-                best_ll = fit.log_likelihood
-                best_eval = eval_df
+            for age, section_df in sections.items():
                 try:
                     best_iso_track, _ = IsochroneUtils.prepare_isochrone_track(section_df)
                 except ValueError:
@@ -291,8 +288,15 @@ def plot_fitted_model_against_targets(
     target_mag_col = "G_abs"
     pred_mag_col = "iso_mag_pred"
 
-    required_target_cols = {target_color_col, target_mag_col}
-    required_fit_cols = {target_color_col, pred_mag_col}
+    def _attach_mass_prediction(
+        self,
+        eval_df: pd.DataFrame,
+        track_df: pd.DataFrame,
+        mass_col: str | None,
+    ) -> None:
+        if not mass_col:
+            eval_df["mass_pred"] = np.nan
+            return
 
     if not required_target_cols.issubset(set(targets_df.columns)):
         raise ValueError(f"targets_df must include columns {sorted(required_target_cols)}")
