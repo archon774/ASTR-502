@@ -1,27 +1,28 @@
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass
+import glob
 import logging
 from pathlib import Path
-import re
 from typing import Iterable
-import glob
-import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.interpolate import interp1d
 
-from find_mag import PhotometryMerger
 from read_spot_models import SPOT
 from stats import LikelihoodSummary, dataframe_log_likelihood
+from utils import (
+    DataFrameUtils,
+    IsochroneUtils,
+    LoggingUtils,
+    ResultsManager,
+    TargetDataLoader,
+)
 
 
 logger = logging.getLogger(__name__)
-
 
 
 @dataclass(frozen=True)
@@ -34,97 +35,6 @@ class IsochroneFitResult:
     n_used: int
     predicted_mass_mean: float
     predicted_mass_median: float
-
-
-def _find_col(df: pd.DataFrame, candidates: Iterable[str]) -> str | None:
-    for cand in candidates:
-        for col in df.columns:
-            if cand.lower() in str(col).lower():
-                return str(col)
-    return None
-
-
-def _as_numeric(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    for col in out.columns:
-        out[col] = pd.to_numeric(out[col], errors="coerce")
-    return out
-
-
-
-
-def _extract_run_stamp_from_logging() -> str:
-    """Reuse interpolate log timestamp when available; otherwise create a new one."""
-    pattern = re.compile(r"interpolate_(\d{8}_\d{6})\.log$")
-    for handler in logging.getLogger().handlers:
-        filename = getattr(handler, "baseFilename", None)
-        if not filename:
-            continue
-        match = pattern.search(str(filename))
-        if match:
-            return match.group(1)
-    return time.strftime("%Y%m%d_%H%M%S")
-
-def _extract_metallicity_from_path(file_path: str | Path) -> float:
-    """Infer metallicity from SPOT filename style like f000.isoc or fm05.isoc."""
-    stem = Path(file_path).stem.lower()
-
-    # f000 -> 0.00, fp05 -> +0.5, fm05 -> -0.5
-    m = re.search(r"f([pm]?)(\d+)", stem)
-    if not m:
-        return float("nan")
-
-    sign = m.group(1)
-    digits = m.group(2)
-    value = float(digits) / 100.0
-    if sign == "m":
-        value *= -1.0
-    return value
-
-
-def _build_color_mag_interpolator(
-    isochrone_df: pd.DataFrame,
-    color_col: str,
-    mag_col: str,
-):
-    """Build scipy.interpolate interp1d(color -> magnitude) for one isochrone."""
-    track = isochrone_df[[color_col, mag_col]].dropna().sort_values(color_col)
-    if len(track) < 2:
-        return None
-
-    # Remove repeated x values to keep interp1d stable.
-    track = track.loc[~track[color_col].duplicated(keep="first")]
-    if len(track) < 2:
-        return None
-
-    return interp1d(
-        track[color_col].to_numpy(),
-        track[mag_col].to_numpy(),
-        kind="linear",
-        bounds_error=False,
-        fill_value=np.nan,
-        assume_sorted=True,
-    )
-
-
-def _prepare_isochrone_track(isochrone_df: pd.DataFrame) -> tuple[pd.DataFrame, str | None]:
-    """Normalize one SPOT isochrone section into CMD-friendly columns."""
-    iso = _as_numeric(isochrone_df)
-    iso_bp_col = _find_col(iso, ["BP_mag"])
-    iso_rp_col = _find_col(iso, ["RP_mag"])
-    iso_g_col = _find_col(iso, ["G_mag"])
-    mass_col = _find_col(iso, ["Mass"])
-
-    if not (iso_bp_col and iso_rp_col and iso_g_col):
-        raise ValueError(
-            "Could not identify BP/RP/G columns in SPOT isochrone section; "
-            f"columns were: {list(iso.columns)}"
-        )
-
-    work = iso[[iso_bp_col, iso_rp_col, iso_g_col] + ([mass_col] if mass_col else [])].copy()
-    work["iso_color"] = work[iso_bp_col] - work[iso_rp_col]
-    work["iso_mag"] = work[iso_g_col]
-    return work, mass_col
 
 
 def fit_isochrone_section_to_targets(
@@ -141,17 +51,16 @@ def fit_isochrone_section_to_targets(
         metallicity_dex,
         sigma_mag,
     )
-    targets = _as_numeric(targets_df)
-    host_col = _find_col(targets_df, ["hostname"])
+    targets = DataFrameUtils.as_numeric(targets_df)
+    host_col = DataFrameUtils.find_col(targets_df, ["hostname"])
     if host_col and host_col in targets_df.columns:
         targets["hostname"] = targets_df[host_col]
 
-    # Target photometric columns created by PhotometryMerger.join_photometry_and_distances.
     target_color_col = "BP_RP_abs"
     target_mag_col = "G_abs"
 
     try:
-        work, mass_col = _prepare_isochrone_track(isochrone_df)
+        work, mass_col = IsochroneUtils.prepare_isochrone_track(isochrone_df)
     except ValueError:
         logger.error(
             "Could not identify BP/RP/G columns for logAge=%.3f [M/H]=%.3f. Columns=%s",
@@ -161,7 +70,7 @@ def fit_isochrone_section_to_targets(
         )
         raise
 
-    interpolator = _build_color_mag_interpolator(work, "iso_color", "iso_mag")
+    interpolator = IsochroneUtils.build_color_mag_interpolator(work, "iso_color", "iso_mag")
     if interpolator is None:
         logger.warning(
             "Skipping isochrone section (insufficient points for interpolation): "
@@ -204,7 +113,6 @@ def fit_isochrone_section_to_targets(
         ll_summary.log_likelihood,
     )
 
-    # Estimate masses by nearest color location on the isochrone if mass exists.
     if mass_col:
         ref = work[["iso_color", mass_col]].dropna().sort_values("iso_color")
         if len(ref) >= 2 and ref["iso_color"].nunique() >= 2:
@@ -257,10 +165,7 @@ def fit_spot_grid_to_targets(
     best_iso_track: pd.DataFrame | None = None
     best_ll = float("-inf")
 
-    if isinstance(spot_iso_files, (str, Path)):
-        iso_files = [spot_iso_files]
-    else:
-        iso_files = list(spot_iso_files)
+    iso_files = [spot_iso_files] if isinstance(spot_iso_files, (str, Path)) else list(spot_iso_files)
 
     logger.info("Preparing to fit SPOT grid for %d isochrone file(s)", len(iso_files))
     if not iso_files:
@@ -268,7 +173,7 @@ def fit_spot_grid_to_targets(
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     for iso_file in iso_files:
-        metallicity = _extract_metallicity_from_path(iso_file)
+        metallicity = IsochroneUtils.extract_metallicity_from_path(iso_file)
         if np.isnan(metallicity):
             logger.debug(
                 "Could not infer metallicity from file name '%s'; proceeding with NaN",
@@ -326,7 +231,7 @@ def fit_spot_grid_to_targets(
                 best_ll = fit.log_likelihood
                 best_eval = eval_df
                 try:
-                    best_iso_track, _ = _prepare_isochrone_track(section_df)
+                    best_iso_track, _ = IsochroneUtils.prepare_isochrone_track(section_df)
                 except ValueError:
                     best_iso_track = None
                 logger.info(
@@ -357,52 +262,23 @@ def fit_spot_grid_to_targets(
     )
 
 
-def _default_plot_save_path(output_dir: str | Path = "figs") -> Path:
-    """Default output path for best-fit figure using interpolate run timestamp."""
-    out_dir = Path(output_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    run_stamp = _extract_run_stamp_from_logging()
-    return out_dir / f"interpolate_{run_stamp}_candidate_fits.png"
-
-
 def save_best_fit_candidates(
     best_eval_df: pd.DataFrame,
     best_age_log10_yr: float,
     output_dir: str | Path = "results",
 ) -> Path:
     """Write candidate observed/fitted magnitudes for the best-fit isochrone."""
-    out_dir = Path(output_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    run_stamp = _extract_run_stamp_from_logging()
-    out_path = out_dir / f"interpolate_{run_stamp}_candidate_fits.csv"
-    if "hostname" not in best_eval_df.columns:
-        logger.warning(
-            "Saving best-fit candidates without a 'hostname' column. "
-            "Check that Hostname is preserved in upstream merged photometry."
-        )
-    best_eval_df.to_csv(out_path, index=False)
-    logger.info("Wrote best-fit candidate magnitudes to %s", out_path)
-    return out_path
+    _ = best_age_log10_yr
+    return ResultsManager.save_best_fit_candidates(
+        best_eval_df=best_eval_df,
+        output_dir=output_dir,
+    )
 
 
 def load_targets(phot_csv: str | Path, dist_csv: str | Path) -> pd.DataFrame:
     """Load merged target list from photometry + distance catalogues."""
-    logger.info("Loading targets from photometry=%s and distances=%s", phot_csv, dist_csv)
-    merger = PhotometryMerger()
-    merged = merger.join_photometry_and_distances(phot_csv=phot_csv, dist_csv=dist_csv)
-    logger.info("Loaded merged target table with %d rows and %d columns", *merged.shape)
-    required = {"BP_RP_abs", "G_abs"}
-    missing = required.difference(merged.columns)
-    if missing:
-        logger.error("Merged target table is missing required columns: %s", sorted(missing))
-    else:
-        valid = merged[list(required)].dropna()
-        logger.debug(
-            "Targets with finite BP_RP_abs and G_abs: %d / %d",
-            len(valid),
-            len(merged),
-        )
-    return merged
+    return TargetDataLoader.load_targets(phot_csv=phot_csv, dist_csv=dist_csv)
+
 
 def plot_fitted_model_against_targets(
     targets_df: pd.DataFrame,
@@ -410,20 +286,7 @@ def plot_fitted_model_against_targets(
     title: str = "Best-fit SPOT isochrone vs target data",
     save_path: str | Path | None = None,
 ) -> tuple[plt.Figure, plt.Axes]:
-    """Plot observed targets and best-fit predicted magnitudes on CMD axes.
-
-    Parameters
-    ----------
-    targets_df
-        Master target table containing at least ``BP_RP_abs`` and ``G_abs``.
-    fitted_eval_df
-        Best-fit per-target evaluation table. Must contain ``BP_RP_abs`` and
-        ``iso_mag_pred`` produced from the best ``logAge`` isochrone.
-    title
-        Plot title.
-    save_path
-        Optional output path for saving the figure.
-    """
+    """Plot observed targets and best-fit predicted magnitudes on CMD axes."""
     target_color_col = "BP_RP_abs"
     target_mag_col = "G_abs"
     pred_mag_col = "iso_mag_pred"
@@ -432,19 +295,12 @@ def plot_fitted_model_against_targets(
     required_fit_cols = {target_color_col, pred_mag_col}
 
     if not required_target_cols.issubset(set(targets_df.columns)):
-        raise ValueError(
-            f"targets_df must include columns {sorted(required_target_cols)}"
-        )
+        raise ValueError(f"targets_df must include columns {sorted(required_target_cols)}")
     if not required_fit_cols.issubset(set(fitted_eval_df.columns)):
-        raise ValueError(
-            f"fitted_eval_df must include columns {sorted(required_fit_cols)}"
-        )
+        raise ValueError(f"fitted_eval_df must include columns {sorted(required_fit_cols)}")
 
-    plot_targets = targets_df[[target_color_col, target_mag_col]].copy()
-    plot_targets = plot_targets.dropna()
-
-    plot_fit = fitted_eval_df[[target_color_col, pred_mag_col]].copy()
-    plot_fit = plot_fit.dropna().sort_values(target_color_col)
+    plot_targets = targets_df[[target_color_col, target_mag_col]].dropna().copy()
+    plot_fit = fitted_eval_df[[target_color_col, pred_mag_col]].dropna().sort_values(target_color_col)
 
     fig, ax = plt.subplots(figsize=(8, 10))
     ax.scatter(
@@ -463,7 +319,6 @@ def plot_fitted_model_against_targets(
         color="tab:red",
         label="Best logAge fit (per target)",
     )
-
 
     ax.set_xlabel("BP-RP")
     ax.set_ylabel("G")
@@ -486,14 +341,7 @@ def test_fit_and_plot(
     sigma_mag: float = 0.05,
     save_path: str | Path | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, tuple[plt.Figure, plt.Axes], Path]:
-    """Test helper: run grid fitting and plot the best fitted model.
-
-    Returns
-    -------
-    results_df, best_eval_df, best_isochrone_df, (fig, ax), save_csv
-        Ranked fit table, evaluated best-fit model table, best-fit isochrone track,
-        matplotlib handles, and saved candidate fit CSV path.
-    """
+    """Test helper: run grid fitting and plot the best fitted model."""
     targets_df = load_targets(phot_csv=phot_csv, dist_csv=dist_csv)
     results_df, best_eval_df, best_isochrone_df = fit_spot_grid_to_targets(
         targets_df=targets_df,
@@ -515,7 +363,7 @@ def test_fit_and_plot(
         best_age_log10_yr=float(best["age_log10_yr"]),
         output_dir="results",
     )
-    resolved_save_path = Path(save_path) if save_path is not None else _default_plot_save_path("figs")
+    resolved_save_path = Path(save_path) if save_path is not None else ResultsManager.default_plot_save_path("figs")
     fig_ax = plot_fitted_model_against_targets(
         targets_df=targets_df,
         fitted_eval_df=best_eval_df,
@@ -530,39 +378,18 @@ def test_fit_and_plot(
 
 
 def configure_debug_logging(log_dir: str | Path = "logs") -> Path:
-    """Configure root logger to write debug output to ``log_dir``.
-
-    A new file is created on each run using the current timestamp.
-
-    Returns
-    -------
-    Path
-        Full path to the log file.
-    """
-    logs_path = Path(log_dir)
-    logs_path.mkdir(parents=True, exist_ok=True)
-    run_stamp = time.strftime("%Y%m%d_%H%M%S")
-    log_file = logs_path / f"interpolate_{run_stamp}.log"
-
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
-        handlers=[
-            logging.FileHandler(log_file, mode="a", encoding="utf-8"),
-            logging.StreamHandler(),
-        ],
-        force=True,
-    )
-    logger.debug("Debug logging initialized at %s", log_file)
-    return log_file
+    """Configure root logger to write debug output to ``log_dir``."""
+    return LoggingUtils.configure_debug_logging(log_dir=log_dir)
 
 
 if __name__ == "__main__":
     configure_debug_logging("logs")
 
     test_fit_and_plot(
-        phot_csv='/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Master_Photometry_List.csv',
-        dist_csv='/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Mega_Target_List.csv',
-        spot_iso_files=glob.glob('/Users/archon/classes/ASTR_502/workstation/isochrones/SPOTS/isos/*.isoc')
+        phot_csv="/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Master_Photometry_List.csv",
+        dist_csv="/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Mega_Target_List.csv",
+        spot_iso_files=glob.glob(
+            "/Users/archon/classes/ASTR_502/workstation/isochrones/SPOTS/isos/*.isoc"
+        ),
     )
     plt.show()
