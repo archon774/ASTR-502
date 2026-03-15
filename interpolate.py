@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import time
 from scipy.interpolate import RegularGridInterpolator
 from scipy.optimize import minimize
 
@@ -272,13 +273,85 @@ def get_bestfit_model_mag_for_star(hostname: str, **fit_kwargs) -> tuple[FitResu
     return fit, dict(fit.model_magnitudes)
 
 
-def save_fit_results_to_csv(results: list[FitResultSchema], output_csv: str = "results/interpolate_best_fit_results.csv") -> str:
+def _default_results_csv_path() -> str:
+    run_stamp = time.strftime("%Y%m%d_%H%M%S")
+    return f"results/interpolate_{run_stamp}.csv"
+
+
+def save_fit_results_to_csv(results: list[FitResultSchema], output_csv: str | None = None) -> str:
     from pathlib import Path
 
-    final_path = Path(output_csv)
+    final_path = Path(output_csv or _default_results_csv_path())
     final_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame([r.to_record() for r in results]).to_csv(final_path, index=False)
     return str(final_path)
+
+
+def fit_single_star_runtime(
+    hostname: str,
+    *,
+    mega_csv_path: str = DEFAULT_MEGA_CSV,
+    phot_csv_path: str = DEFAULT_PHOT_CSV,
+    output_csv: str | None = None,
+    **fit_kwargs,
+) -> FitResultSchema:
+    """Runtime helper to fit one star from the catalog inputs.
+
+    This convenience function loads the catalogs, runs the fit, and optionally
+    writes a one-row CSV to ``output_csv``.
+    """
+    load_catalogs(mega_csv_path=mega_csv_path, phot_csv_path=phot_csv_path)
+    fit, _ = fit_best_params(hostname=hostname, **fit_kwargs)
+    if output_csv is not None:
+        save_fit_results_to_csv([fit], output_csv=output_csv)
+    return fit
+
+
+def fit_target_list_runtime(
+    *,
+    mega_csv_path: str = DEFAULT_MEGA_CSV,
+    phot_csv_path: str = DEFAULT_PHOT_CSV,
+    hostnames: list[str] | None = None,
+    output_csv: str | None = None,
+    continue_on_error: bool = True,
+    verbose: bool = True,
+    **fit_kwargs,
+) -> tuple[list[FitResultSchema], list[tuple[str, str]]]:
+    """Runtime helper to fit the entire target list outlined in the catalogs.
+
+    Returns:
+        (successful_fits, failures), where ``failures`` stores ``(hostname, error)``.
+    """
+    load_catalogs(mega_csv_path=mega_csv_path, phot_csv_path=phot_csv_path)
+    mega_df, _ = _CATALOG_STORE.ensure_loaded()
+
+    if hostnames is None:
+        hostnames = [str(h) for h in mega_df["hostname"].dropna().unique().tolist()]
+
+    fits: list[FitResultSchema] = []
+    failures: list[tuple[str, str]] = []
+
+    for hostname in hostnames:
+        try:
+            fit, _ = fit_best_params(hostname=hostname, verbose=verbose, **fit_kwargs)
+            fits.append(fit)
+        except Exception as exc:
+            if not continue_on_error:
+                raise
+            failures.append((hostname, str(exc)))
+            if verbose:
+                print(f"[{hostname}] fit failed: {exc}")
+
+    saved_csv_path: str | None = None
+    if fits:
+        saved_csv_path = save_fit_results_to_csv(fits, output_csv=output_csv)
+
+    if verbose:
+        print(f"Completed fits: {len(fits)} success, {len(failures)} failed")
+        if saved_csv_path is not None:
+            print(f"Saved successful fits to: {saved_csv_path}")
+
+    return fits, failures
 
 
 __all__ = [
@@ -286,5 +359,7 @@ __all__ = [
     "get_model_mag",
     "fit_best_params",
     "get_bestfit_model_mag_for_star",
+    "fit_single_star_runtime",
+    "fit_target_list_runtime",
     "save_fit_results_to_csv",
 ]
