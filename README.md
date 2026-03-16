@@ -43,14 +43,20 @@ pip install -r requirements.txt
 Run a single-star fit:
 
 ```bash
-PYTHONPATH=src python scripts/fit_single_star.py <hostname> --mega-csv <mega.csv> --phot-csv <phot.csv>
+python scripts/fit_single_star.py <hostname> --mega-csv <mega.csv> --phot-csv <phot.csv>
 ```
 
 Run a target-list fit:
 
 ```bash
-PYTHONPATH=src python scripts/fit_target_list.py --mega-csv <mega.csv> --phot-csv <phot.csv>
+python scripts/fit_target_list.py --mega-csv <mega.csv> --phot-csv <phot.csv>
 ```
 
 > Note: the default CSV paths resolve to `data/raw/catalogs/...` and can also be overridden via
 > `ASTR502_MEGA_CSV` and `ASTR502_PHOT_CSV` environment variables.
+
+Instructor: Dr. Andrew Mann
+
+Repository owner: James Atkisson
+
+Email: atk@unc.edu
