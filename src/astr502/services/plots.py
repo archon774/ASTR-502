@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 
 
 def plot_observed_vs_table_age_scatter(
-    catalog_csv: str | Path = "data/raw/catalogs/ASTR502_Mega_Target_List.csv",
-    observed_csv: str | Path = "outputs/results/interpolate_best_fit_results.csv",
-    output_path: str | Path = "outputs/results/age_obs_vs_table_scatter.png",
+    catalog_csv: str | Path = "../../../data/raw/catalogs/ASTR502_Mega_Target_List.csv",
+    observed_csv: str | Path = "../../../outputs/results/interpolate_best_fit_results.csv",
+    output_path: str | Path = "../../../outputs/figs/age_obs_vs_table_scatter.png",
 ) -> Path:
     """Plot fractional age residuals vs. table age for targets with both age values.
 
@@ -76,7 +76,7 @@ def plot_observed_vs_table_age_scatter(
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.scatter(x_values, y_values, s=24, alpha=0.75)
     ax.axvline(0.0, color="black", linestyle="--", linewidth=1.0)
-
+    ax.set_xlim(-1,1)
     ax.set_xlabel(r"$(Age_{obs} - Age_{table}) / Age_{table}$")
     ax.set_ylabel("Age_table (Gyr)")
     ax.set_title("Observed vs Table Age: Fractional Residual vs Table Age")
