@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping
 
 import numpy as np
@@ -79,3 +81,55 @@ def summarize_chi_square(
     )
     chi2_reg = chi2_prior(mass=mass, log10_age=log10_age, feh=feh, prior=prior)
     return ChiSquareSummary(chi2_phot=chi2_data, chi2_prior=chi2_reg)
+
+
+def reduced_chi2_from_csv(csv_path: str | Path, n_fit_params: int = 4) -> dict[str, float]:
+    """Compute reduced chi-square values for each star in a fit-results CSV.
+
+    The CSV is expected to include:
+      - ``hostname``
+      - either ``chi2`` or ``chi2_total``
+      - one or more ``model_*`` columns for the fitted photometric bands
+
+    The per-row degrees of freedom are computed as::
+
+        dof = N_model_bands_with_finite_values - n_fit_params
+
+    where ``n_fit_params`` defaults to 4 (mass, age, [Fe/H], Av).
+    """
+    path = Path(csv_path)
+    reduced: dict[str, float] = {}
+
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None:
+            return reduced
+
+        fieldnames = set(reader.fieldnames)
+        chi2_col = "chi2" if "chi2" in fieldnames else "chi2_total"
+        if chi2_col not in fieldnames:
+            raise ValueError("CSV must include either 'chi2' or 'chi2_total'.")
+
+        model_cols = [name for name in reader.fieldnames if name.startswith("model_")]
+        if not model_cols:
+            raise ValueError("CSV must include at least one 'model_*' column.")
+
+        for row in reader:
+            hostname = row.get("hostname", "")
+            if not hostname:
+                continue
+
+            chi2_val = float(row[chi2_col])
+            n_bands = 0
+            for col in model_cols:
+                value = row.get(col, "")
+                try:
+                    if np.isfinite(float(value)):
+                        n_bands += 1
+                except (TypeError, ValueError):
+                    continue
+
+            dof = n_bands - n_fit_params
+            reduced[hostname] = float(chi2_val / dof) if dof > 0 else np.nan
+
+    return reduced
