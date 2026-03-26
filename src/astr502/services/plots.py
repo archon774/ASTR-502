@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 
-from astr502.domain.stats import reduced_chi2_from_csv
+from src.astr502.domain.stats import reduced_chi2_from_csv
 
 
 def plot_observed_vs_table_age_scatter(
