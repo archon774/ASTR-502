@@ -4,6 +4,10 @@ import csv
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
+
+from astr502.domain.stats import reduced_chi2_from_csv
 
 
 def plot_observed_vs_table_age_scatter(
@@ -42,6 +46,8 @@ def plot_observed_vs_table_age_scatter(
 
     x_values: list[float] = []
     y_values: list[float] = []
+    reduced_chi2_by_host = reduced_chi2_from_csv(observed_csv)
+    reduced_chi2_values: list[float] = []
 
     with observed_csv.open("r", newline="") as fh:
         reader = csv.DictReader(fh)
@@ -65,6 +71,7 @@ def plot_observed_vs_table_age_scatter(
 
             x_values.append(fractional_residual)
             y_values.append(age_table_gyr)
+            reduced_chi2_values.append(reduced_chi2_by_host.get(hostname, np.nan))
 
     if not x_values:
         raise ValueError(
@@ -74,12 +81,41 @@ def plot_observed_vs_table_age_scatter(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     fig, ax = plt.subplots(figsize=(9, 6))
-    ax.scatter(x_values, y_values, s=24, alpha=0.75)
+
+    reduced = np.asarray(reduced_chi2_values, dtype=float)
+    finite = reduced[np.isfinite(reduced) & (reduced > 0)]
+    if finite.size:
+        # Visual scaling around reduced-chi2=1.
+        vmin = min(float(np.nanmin(finite)), 1.0)
+        vmax = max(float(np.nanmax(finite)), 1.0)
+        if vmin == vmax:
+            vmin, vmax = 0.5, 2.0
+    else:
+        vmin, vmax = 0.5, 2.0
+
+    chi2_cmap = LinearSegmentedColormap.from_list(
+        "chi2_blue_green_red",
+        [(0.0, "#1f77b4"), (0.5, "#2ca02c"), (1.0, "#d62728")],
+    )
+    chi2_cmap.set_bad(color="0.65")
+
+    scatter = ax.scatter(
+        x_values,
+        y_values,
+        c=reduced,
+        cmap=chi2_cmap,
+        norm=TwoSlopeNorm(vmin=vmin, vcenter=1.0, vmax=vmax),
+        s=24,
+        alpha=0.85,
+    )
+
+    cbar = fig.colorbar(scatter, ax=ax, pad=0.02)
+    cbar.set_label(r"Reduced $\chi^2$")
     ax.axvline(0.0, color="black", linestyle="--", linewidth=1.0)
     ax.set_xlim(-1,1)
     ax.set_xlabel(r"$(Age_{obs} - Age_{table}) / Age_{table}$")
     ax.set_ylabel("Age_table (Gyr)")
-    ax.set_title("Observed vs Table Age: Fractional Residual vs Table Age")
+    ax.set_title("Observed vs Table Age (point color = reduced $\\chi^2$)")
     ax.grid(alpha=0.25)
 
     fig.tight_layout()
