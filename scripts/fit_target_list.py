@@ -25,6 +25,12 @@ def parse_args() -> argparse.Namespace:
         default="threads",
         help="Parallel executor backend when --workers > 1.",
     )
+    parser.add_argument(
+        "--max-in-flight",
+        type=int,
+        default=None,
+        help="Max queued futures when running in parallel. Lower values reduce memory pressure.",
+    )
     parser.add_argument("--no-emcee", action="store_true", help="Disable emcee sampling to speed up batch fitting")
     parser.add_argument("--nwalkers", type=int, default=None, help="Override emcee nwalkers")
     parser.add_argument("--nsteps", type=int, default=None, help="Override emcee nsteps")
@@ -43,6 +49,7 @@ def main() -> None:
         "verbose": not args.quiet,
         "workers": args.workers,
         "parallel_backend": args.parallel_backend,
+        "max_in_flight": args.max_in_flight,
         "run_emcee": not args.no_emcee,
     }
     if args.nwalkers is not None:

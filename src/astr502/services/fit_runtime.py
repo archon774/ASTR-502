@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import concurrent.futures
 from collections.abc import Iterable
+from typing import Callable
 
 from src.astr502.data.catalogs import DEFAULT_MEGA_CSV, DEFAULT_PHOT_CSV
 from src.astr502.domain.schemas import FitResultSchema
@@ -34,6 +35,7 @@ def fit_target_list_runtime(
     verbose: bool = True,
     workers: int = 1,
     parallel_backend: str = "threads",
+    max_in_flight: int | None = None,
     **fit_kwargs,
 ) -> tuple[list[FitResultSchema], list[tuple[str, str]]]:
     """Runtime helper to fit a user-provided or catalog-derived host list."""
@@ -67,6 +69,7 @@ def fit_target_list_runtime(
             phot_csv_path=phot_csv_path,
             worker_count=worker_count,
             parallel_backend=parallel_backend,
+            max_in_flight=max_in_flight,
             verbose=verbose,
             fit_kwargs=fit_kwargs,
             continue_on_error=continue_on_error,
@@ -86,15 +89,13 @@ def fit_target_list_runtime(
     return fits, failures
 
 
-def _fit_hostname_worker(
+def _fit_hostname_worker_loaded(
     hostname: str,
     *,
-    mega_csv_path: str,
-    phot_csv_path: str,
     verbose: bool,
     fit_kwargs: dict,
 ) -> FitResultSchema:
-    load_catalogs(mega_csv_path=mega_csv_path, phot_csv_path=phot_csv_path)
+    # Catalogs are preloaded either in the parent (threads) or in each process via initializer.
     fit, _ = fit_best_params(hostname=hostname, verbose=verbose, **fit_kwargs)
     return fit
 
@@ -106,6 +107,7 @@ def _fit_hostnames_parallel(
     phot_csv_path: str,
     worker_count: int,
     parallel_backend: str,
+    max_in_flight: int | None,
     verbose: bool,
     fit_kwargs: dict,
     continue_on_error: bool,
@@ -123,21 +125,80 @@ def _fit_hostnames_parallel(
     fits_by_hostname: dict[str, FitResultSchema] = {}
     failures: list[tuple[str, str]] = []
 
-    with executor_type(max_workers=worker_count) as executor:
-        futures = {
-            executor.submit(
-                _fit_hostname_worker,
-                hostname,
-                mega_csv_path=mega_csv_path,
-                phot_csv_path=phot_csv_path,
-                verbose=verbose,
-                fit_kwargs=fit_kwargs,
-            ): hostname
-            for hostname in host_list
-        }
+    if max_in_flight is None:
+        max_in_flight = max(1, worker_count * 4)
+    max_in_flight = max(1, int(max_in_flight))
 
-        for future in concurrent.futures.as_completed(futures):
-            hostname = futures[future]
+    if parallel_backend == "processes":
+        with executor_type(
+            max_workers=worker_count,
+            initializer=load_catalogs,
+            initargs=(mega_csv_path, phot_csv_path),
+        ) as executor:
+            _collect_parallel_results(
+                host_list=host_list,
+                max_in_flight=max_in_flight,
+                worker_submit=lambda hostname: executor.submit(
+                    _fit_hostname_worker_loaded,
+                    hostname,
+                    verbose=verbose,
+                    fit_kwargs=fit_kwargs,
+                ),
+                fits_by_hostname=fits_by_hostname,
+                failures=failures,
+                continue_on_error=continue_on_error,
+                verbose=verbose,
+            )
+    else:
+        # Thread workers can share loaded catalogs and isochrone caches.
+        load_catalogs(mega_csv_path=mega_csv_path, phot_csv_path=phot_csv_path)
+        with executor_type(max_workers=worker_count) as executor:
+            _collect_parallel_results(
+                host_list=host_list,
+                max_in_flight=max_in_flight,
+                worker_submit=lambda hostname: executor.submit(
+                    _fit_hostname_worker_loaded,
+                    hostname,
+                    verbose=verbose,
+                    fit_kwargs=fit_kwargs,
+                ),
+                fits_by_hostname=fits_by_hostname,
+                failures=failures,
+                continue_on_error=continue_on_error,
+                verbose=verbose,
+            )
+
+    ordered_fits = [fits_by_hostname[h] for h in host_list if h in fits_by_hostname]
+    return ordered_fits, failures
+
+
+def _collect_parallel_results(
+    *,
+    host_list: list[str],
+    max_in_flight: int,
+    worker_submit: Callable[[str], concurrent.futures.Future[FitResultSchema]],
+    fits_by_hostname: dict[str, FitResultSchema],
+    failures: list[tuple[str, str]],
+    continue_on_error: bool,
+    verbose: bool,
+) -> None:
+    in_flight: dict[concurrent.futures.Future[FitResultSchema], str] = {}
+    host_iter = iter(host_list)
+
+    def _submit_until_full() -> None:
+        while len(in_flight) < max_in_flight:
+            try:
+                hostname = next(host_iter)
+            except StopIteration:
+                break
+            in_flight[worker_submit(hostname)] = hostname
+
+    _submit_until_full()
+
+    while in_flight:
+        done, _ = concurrent.futures.wait(in_flight, return_when=concurrent.futures.FIRST_COMPLETED)
+        for future in done:
+            hostname = in_flight.pop(future)
             try:
                 fits_by_hostname[hostname] = future.result()
             except Exception as exc:
@@ -146,6 +207,4 @@ def _fit_hostnames_parallel(
                 failures.append((hostname, str(exc)))
                 if verbose:
                     print(f"[{hostname}] fit failed: {exc}")
-
-    ordered_fits = [fits_by_hostname[h] for h in host_list if h in fits_by_hostname]
-    return ordered_fits, failures
+        _submit_until_full()

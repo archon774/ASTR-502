@@ -52,6 +52,16 @@ Run a target-list fit:
 python scripts/fit_target_list.py --mega-csv <mega.csv> --phot-csv <phot.csv>
 ```
 
+Parallel tuning examples:
+
+```bash
+# Shared-memory threading with bounded in-flight work items.
+python scripts/fit_target_list.py --workers 16 --parallel-backend threads --max-in-flight 64
+
+# Process pool (one catalog load per worker process).
+python scripts/fit_target_list.py --workers 8 --parallel-backend processes --max-in-flight 32
+```
+
 > Note: the default CSV paths resolve to `data/raw/catalogs/...` and can also be overridden via
 > `ASTR502_MEGA_CSV` and `ASTR502_PHOT_CSV` environment variables.
 
