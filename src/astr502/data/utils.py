@@ -41,15 +41,17 @@ class LoggingUtils:
         output_dir: str | Path,
         suffix: str,
         prefix: str = "interpolate",
+        run_stamp: str | None = None,
     ) -> Path:
-        return Path(output_dir) / f"{prefix}_{LoggingUtils.run_timestamp()}_{suffix}"
+        stamp = run_stamp if run_stamp is not None else LoggingUtils.run_timestamp()
+        return Path(output_dir) / f"{prefix}_{stamp}_{suffix}"
 
     @staticmethod
-    def configure_debug_logging(log_dir: str | Path = "outputs/logs") -> Path:
+    def configure_debug_logging(log_dir: str | Path = "outputs/logs", run_stamp: str | None = None) -> Path:
         logs_path = Path(log_dir)
         logs_path.mkdir(parents=True, exist_ok=True)
-        run_stamp = LoggingUtils.run_timestamp()
-        log_file = logs_path / f"interpolate_{run_stamp}.log"
+        stamp = run_stamp if run_stamp is not None else LoggingUtils.run_timestamp()
+        log_file = logs_path / f"interpolate_{stamp}.log"
 
         logging.basicConfig(
             level=logging.DEBUG,
