@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -8,12 +9,15 @@ import numpy as np
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 
 from src.astr502.domain.stats import reduced_chi2_from_csv
+from src.astr502.data.utils import LoggingUtils
+
+logger = logging.getLogger(__name__)
 
 
 def plot_observed_vs_table_age_scatter(
     catalog_csv: str | Path = "../../../data/raw/catalogs/ASTR502_Mega_Target_List.csv",
     observed_csv: str | Path = "../../../outputs/results/interpolate_best_fit_results.csv",
-    output_path: str | Path = "../../../outputs/figs/age_obs_vs_table_scatter.png",
+    output_path: str | Path | None = None,
 ) -> Path:
     """Plot fractional age residuals vs. table age for targets with both age values.
 
@@ -26,7 +30,14 @@ def plot_observed_vs_table_age_scatter(
 
     catalog_csv = Path(catalog_csv)
     observed_csv = Path(observed_csv)
-    output_path = Path(output_path)
+    output_path = (
+        Path(output_path)
+        if output_path is not None
+        else LoggingUtils.timestamped_output_path(
+            output_dir="../../../outputs/figs",
+            suffix="age_obs_vs_table_scatter.png",
+        )
+    )
 
     table_age_by_host: dict[str, float] = {}
     with catalog_csv.open("r", newline="") as fh:
@@ -121,6 +132,7 @@ def plot_observed_vs_table_age_scatter(
     fig.tight_layout()
     fig.savefig(output_path, dpi=200)
     plt.close(fig)
+    logger.info("Saved age scatter plot to %s", output_path)
 
     return output_path
 

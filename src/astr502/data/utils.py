@@ -32,10 +32,23 @@ BAND_COLUMN_CANDIDATES = {
 
 class LoggingUtils:
     @staticmethod
+    def run_timestamp() -> str:
+        return time.strftime("%Y%m%d_%H%M%S")
+
+    @staticmethod
+    def timestamped_output_path(
+        *,
+        output_dir: str | Path,
+        suffix: str,
+        prefix: str = "interpolate",
+    ) -> Path:
+        return Path(output_dir) / f"{prefix}_{LoggingUtils.run_timestamp()}_{suffix}"
+
+    @staticmethod
     def configure_debug_logging(log_dir: str | Path = "outputs/logs") -> Path:
         logs_path = Path(log_dir)
         logs_path.mkdir(parents=True, exist_ok=True)
-        run_stamp = time.strftime("%Y%m%d_%H%M%S")
+        run_stamp = LoggingUtils.run_timestamp()
         log_file = logs_path / f"interpolate_{run_stamp}.log"
 
         logging.basicConfig(

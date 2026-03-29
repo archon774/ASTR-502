@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import logging
 
 import numpy as np
 import pandas as pd
@@ -9,7 +10,7 @@ from scipy.optimize import minimize
 
 from src.astr502.data.catalogs import CatalogStore, CatalogUtils, DEFAULT_MEGA_CSV, DEFAULT_PHOT_CSV
 from src.astr502.data.readers.read_spot_models import SPOT
-from src.astr502.data.utils import IsochroneUtils, REQUESTED_BANDS
+from src.astr502.data.utils import IsochroneUtils, LoggingUtils, REQUESTED_BANDS
 from src.astr502.domain.schemas import FitResultSchema
 from src.astr502.domain.stats import summarize_chi_square
 from src.astr502.modeling.extinction import get_band_extinction
@@ -18,6 +19,7 @@ _CATALOG_STORE = CatalogStore()
 _INTERPOLATORS: dict[str, RegularGridInterpolator] | None = None
 _GRIDS: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
 _ACTIVE_BANDS: list[str] | None = None
+logger = logging.getLogger(__name__)
 
 
 def load_catalogs(
@@ -219,10 +221,18 @@ def get_bestfit_model_mag_for_star(hostname: str, **fit_kwargs) -> tuple[FitResu
     return fit, dict(fit.model_magnitudes)
 
 
-def save_fit_results_to_csv(results: list[FitResultSchema], output_csv: str = "outputs/results/interpolate_best_fit_results.csv") -> str:
-    final_path = Path(output_csv)
+def save_fit_results_to_csv(results: list[FitResultSchema], output_csv: str | None = None) -> str:
+    final_path = (
+        Path(output_csv)
+        if output_csv is not None
+        else LoggingUtils.timestamped_output_path(
+            output_dir="outputs/results",
+            suffix="candidate_fits.csv",
+        )
+    )
     final_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame([r.to_record() for r in results]).to_csv(final_path, index=False)
+    logger.info("Saved fit results to %s", final_path)
     return str(final_path)
 
 
