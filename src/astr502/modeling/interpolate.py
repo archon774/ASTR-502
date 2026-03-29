@@ -13,7 +13,7 @@ from src.astr502.data.catalogs import CatalogStore, CatalogUtils, DEFAULT_MEGA_C
 from src.astr502.data.readers.read_spot_models import SPOT
 from src.astr502.data.utils import IsochroneUtils, LoggingUtils, REQUESTED_BANDS
 from src.astr502.domain.schemas import FitResultSchema
-from src.astr502.domain.stats import summarize_chi_square
+from src.astr502.domain.stats import reduced_chi2, summarize_chi_square
 from src.astr502.modeling.extinction import get_band_extinction
 
 _CATALOG_STORE = CatalogStore()
@@ -268,6 +268,8 @@ def fit_best_params(
         chi2_phot=float(chi2.chi2_phot),
         chi2_prior=float(chi2.chi2_prior),
         chi2_total=float(chi2.chi2_total),
+        n_obs_bands=len(obs_abs),
+        reduced_chi2=reduced_chi2(chi2_total=chi2.chi2_total, n_obs_bands=len(obs_abs)),
         distance_pc=float(distance_pc),
         model_magnitudes=model_best,
         mcmc_summary=mcmc_summary,

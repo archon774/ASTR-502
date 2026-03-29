@@ -20,6 +20,16 @@ class ChiSquareSummary:
         return float(self.chi2_phot + self.chi2_prior)
 
 
+def reduced_chi2(chi2_total: float, n_obs_bands: int, n_fit_params: int = 4) -> float:
+    """Compute reduced chi-square for a single fit result.
+
+    Uses ``dof = n_obs_bands - n_fit_params`` and returns ``np.nan`` when
+    there are no positive degrees of freedom.
+    """
+    dof = int(n_obs_bands) - int(n_fit_params)
+    return float(chi2_total / dof) if dof > 0 else float(np.nan)
+
+
 def chi2_photometric(
     model_mags: Mapping[str, float],
     observed_abs_mags: Mapping[str, float],
@@ -91,6 +101,11 @@ def reduced_chi2_from_csv(csv_path: str | Path, n_fit_params: int = 4) -> dict[s
       - either ``chi2`` or ``chi2_total``
       - one or more ``model_*`` columns for the fitted photometric bands
 
+    If ``reduced_chi2`` is already present in the CSV, its value is reused.
+    If ``n_obs_bands`` is present, that value is used for the per-row number
+    of photometric constraints. Otherwise finite ``model_*`` columns are used
+    as a fallback approximation.
+
     The per-row degrees of freedom are computed as::
 
         dof = N_model_bands_with_finite_values - n_fit_params
@@ -110,26 +125,45 @@ def reduced_chi2_from_csv(csv_path: str | Path, n_fit_params: int = 4) -> dict[s
         if chi2_col not in fieldnames:
             raise ValueError("CSV must include either 'chi2' or 'chi2_total'.")
 
+        has_reduced_col = "reduced_chi2" in fieldnames
+        has_n_obs_col = "n_obs_bands" in fieldnames
         model_cols = [name for name in reader.fieldnames if name.startswith("model_")]
-        if not model_cols:
-            raise ValueError("CSV must include at least one 'model_*' column.")
+        if not has_reduced_col and not has_n_obs_col and not model_cols:
+            raise ValueError(
+                "CSV must include 'reduced_chi2', 'n_obs_bands', or at least one 'model_*' column."
+            )
 
         for row in reader:
             hostname = row.get("hostname", "")
             if not hostname:
                 continue
 
-            chi2_val = float(row[chi2_col])
-            n_bands = 0
-            for col in model_cols:
-                value = row.get(col, "")
+            if has_reduced_col:
                 try:
-                    if np.isfinite(float(value)):
-                        n_bands += 1
+                    val = float(row.get("reduced_chi2", ""))
+                    if np.isfinite(val):
+                        reduced[hostname] = val
+                        continue
                 except (TypeError, ValueError):
-                    continue
+                    pass
 
-            dof = n_bands - n_fit_params
-            reduced[hostname] = float(chi2_val / dof) if dof > 0 else np.nan
+            chi2_val = float(row[chi2_col])
+
+            if has_n_obs_col:
+                try:
+                    n_bands = int(float(row.get("n_obs_bands", "")))
+                except (TypeError, ValueError):
+                    n_bands = 0
+            else:
+                n_bands = 0
+                for col in model_cols:
+                    value = row.get(col, "")
+                    try:
+                        if np.isfinite(float(value)):
+                            n_bands += 1
+                    except (TypeError, ValueError):
+                        continue
+
+            reduced[hostname] = reduced_chi2(chi2_val, n_obs_bands=n_bands, n_fit_params=n_fit_params)
 
     return reduced
