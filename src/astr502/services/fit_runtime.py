@@ -3,10 +3,15 @@ from __future__ import annotations
 import concurrent.futures
 from collections.abc import Iterable
 from functools import partial
+import logging
+import time
 
 from src.astr502.data.catalogs import DEFAULT_MEGA_CSV, DEFAULT_PHOT_CSV
+from src.astr502.data.utils import LoggingUtils
 from src.astr502.domain.schemas import FitResultSchema
 from src.astr502.modeling.interpolate import fit_best_params, load_catalogs, save_fit_results_to_csv
+
+logger = logging.getLogger(__name__)
 
 
 def fit_single_star_runtime(
@@ -18,10 +23,23 @@ def fit_single_star_runtime(
     **fit_kwargs,
 ) -> FitResultSchema:
     """Runtime helper to fit one star from the catalog inputs."""
+    run_stamp = LoggingUtils.run_timestamp()
+    log_file = LoggingUtils.configure_debug_logging(run_stamp=run_stamp)
+    start_time = time.perf_counter()
+    logger.info("Starting single-star interpolation run at %s for hostname=%s", run_stamp, hostname)
+
     load_catalogs(mega_csv_path=mega_csv_path, phot_csv_path=phot_csv_path)
     fit, _ = fit_best_params(hostname=hostname, **fit_kwargs)
-    if output_csv is not None:
-        save_fit_results_to_csv([fit], output_csv=output_csv)
+    saved_csv_path = save_fit_results_to_csv([fit], output_csv=output_csv, run_stamp=run_stamp)
+
+    elapsed_seconds = time.perf_counter() - start_time
+    logger.info(
+        "Completed single-star interpolation run at %s in %.3f seconds. output_csv=%s log_file=%s",
+        run_stamp,
+        elapsed_seconds,
+        saved_csv_path,
+        log_file,
+    )
     return fit
 
 
@@ -38,6 +56,11 @@ def fit_target_list_runtime(
     **fit_kwargs,
 ) -> tuple[list[FitResultSchema], list[tuple[str, str]]]:
     """Runtime helper to fit a user-provided or catalog-derived host list."""
+    run_stamp = LoggingUtils.run_timestamp()
+    log_file = LoggingUtils.configure_debug_logging(run_stamp=run_stamp)
+    start_time = time.perf_counter()
+    logger.info("Starting target-list interpolation run at %s", run_stamp)
+
     load_catalogs(mega_csv_path=mega_csv_path, phot_csv_path=phot_csv_path)
 
     if hostnames is None:
@@ -59,6 +82,7 @@ def fit_target_list_runtime(
                 if not continue_on_error:
                     raise
                 failures.append((hostname, str(exc)))
+                logger.exception("[%s] fit failed", hostname)
                 if verbose:
                     print(f"[{hostname}] fit failed: {exc}")
     else:
@@ -77,11 +101,27 @@ def fit_target_list_runtime(
 
     saved_csv_path: str | None = None
     if fits:
-        saved_csv_path = save_fit_results_to_csv(fits, output_csv=output_csv)
+        saved_csv_path = save_fit_results_to_csv(fits, output_csv=output_csv, run_stamp=run_stamp)
+
+    elapsed_seconds = time.perf_counter() - start_time
+    logger.info(
+        (
+            "Completed target-list interpolation run at %s in %.3f seconds "
+            "with %d successes and %d failures. output_csv=%s log_file=%s"
+        ),
+        run_stamp,
+        elapsed_seconds,
+        len(fits),
+        len(failures),
+        saved_csv_path,
+        log_file,
+    )
 
     if verbose:
+        logger.info("Completed fits: %d success, %d failed", len(fits), len(failures))
         print(f"Completed fits: {len(fits)} success, {len(failures)} failed")
         if saved_csv_path is not None:
+            logger.info("Saved successful fits to: %s", saved_csv_path)
             print(f"Saved successful fits to: {saved_csv_path}")
 
     return fits, failures
@@ -150,6 +190,7 @@ def _fit_hostnames_parallel(
                 if not continue_on_error:
                     raise
                 failures.append((hostname, str(exc)))
+                logger.exception("[%s] fit failed", hostname)
                 if verbose:
                     print(f"[{hostname}] fit failed: {exc}")
 

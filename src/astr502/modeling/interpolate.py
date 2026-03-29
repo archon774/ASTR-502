@@ -276,15 +276,15 @@ def fit_best_params(
     )
 
     if verbose:
-        print(f"[{hostname}] Best-fit parameters (chi2_phot + chi2_prior)")
-        print(f"  mass = {fit.mass:.4f} Msun")
-        print(f"  age  = {fit.age_yr:.3e} yr")
-        print(f"         ({age_gyr_b:.4f} Gyr)")
-        print(f"  feh  = {fit.feh:.4f} dex")
-        print(f"  Av   = {fit.av:.4f} mag")
-        print(f"  chi2_total = {fit.chi2_total:.3f}")
-        print(f"  d_pc used = {fit.distance_pc:.3f}")
-        print(f"  success = {result.success} | {result.message}")
+        logger.info("[%s] Best-fit parameters (chi2_phot + chi2_prior)", hostname)
+        logger.info("  mass = %.4f Msun", fit.mass)
+        logger.info("  age  = %.3e yr", fit.age_yr)
+        logger.info("         (%.4f Gyr)", age_gyr_b)
+        logger.info("  feh  = %.4f dex", fit.feh)
+        logger.info("  Av   = %.4f mag", fit.av)
+        logger.info("  chi2_total = %.3f", fit.chi2_total)
+        logger.info("  d_pc used = %.3f", fit.distance_pc)
+        logger.info("  success = %s | %s", result.success, result.message)
         if mcmc_summary is not None:
             age_med_yr = 10.0 ** mcmc_summary["log10_age"]["median"]
             age_err_minus_yr = age_med_yr - 10.0 ** (
@@ -293,15 +293,19 @@ def fit_best_params(
             age_err_plus_yr = 10.0 ** (
                 mcmc_summary["log10_age"]["median"] + mcmc_summary["log10_age"]["err_plus"]
             ) - age_med_yr
-            print("  emcee 1σ parameter uncertainties (16th/50th/84th percentiles):")
-            print(
-                f"    mass = {fit.mass:.4f} -{mcmc_summary['mass']['err_minus']:.4f}"
-                f"/+{mcmc_summary['mass']['err_plus']:.4f} Msun"
+            logger.info("  emcee 1σ parameter uncertainties (16th/50th/84th percentiles):")
+            logger.info(
+                "    mass = %.4f -%.4f/+%.4f Msun",
+                fit.mass,
+                mcmc_summary["mass"]["err_minus"],
+                mcmc_summary["mass"]["err_plus"],
             )
-            print(f"    age  = {fit.age_yr:.3e} -{age_err_minus_yr:.3e}/+{age_err_plus_yr:.3e} yr")
-            print(
-                f"    feh  = {fit.feh:.4f} -{mcmc_summary['feh']['err_minus']:.4f}"
-                f"/+{mcmc_summary['feh']['err_plus']:.4f} dex"
+            logger.info("    age  = %.3e -%.3e/+%.3e yr", fit.age_yr, age_err_minus_yr, age_err_plus_yr)
+            logger.info(
+                "    feh  = %.4f -%.4f/+%.4f dex",
+                fit.feh,
+                mcmc_summary["feh"]["err_minus"],
+                mcmc_summary["feh"]["err_plus"],
             )
 
     result.mcmc_summary = mcmc_summary
@@ -314,13 +318,18 @@ def get_bestfit_model_mag_for_star(hostname: str, **fit_kwargs) -> tuple[FitResu
     return fit, dict(fit.model_magnitudes)
 
 
-def save_fit_results_to_csv(results: list[FitResultSchema], output_csv: str | None = None) -> str:
+def save_fit_results_to_csv(
+    results: list[FitResultSchema],
+    output_csv: str | None = None,
+    run_stamp: str | None = None,
+) -> str:
     final_path = (
         Path(output_csv)
         if output_csv is not None
         else LoggingUtils.timestamped_output_path(
             output_dir="outputs/results",
             suffix="candidate_fits.csv",
+            run_stamp=run_stamp,
         )
     )
     final_path.parent.mkdir(parents=True, exist_ok=True)
