@@ -26,7 +26,7 @@ def fit_target_list_runtime(
     mega_csv_path: str = DEFAULT_MEGA_CSV,
     phot_csv_path: str = DEFAULT_PHOT_CSV,
     hostnames: list[str] | None = None,
-    output_csv: str = "outputs/results/interpolate_best_fit_results.csv",
+    output_csv: str | None = None,
     continue_on_error: bool = True,
     verbose: bool = True,
     **fit_kwargs,
@@ -54,12 +54,13 @@ def fit_target_list_runtime(
             if verbose:
                 print(f"[{hostname}] fit failed: {exc}")
 
+    saved_csv_path: str | None = None
     if fits:
-        save_fit_results_to_csv(fits, output_csv=output_csv)
+        saved_csv_path = save_fit_results_to_csv(fits, output_csv=output_csv)
 
     if verbose:
         print(f"Completed fits: {len(fits)} success, {len(failures)} failed")
-        if fits:
-            print(f"Saved successful fits to: {output_csv}")
+        if saved_csv_path is not None:
+            print(f"Saved successful fits to: {saved_csv_path}")
 
     return fits, failures

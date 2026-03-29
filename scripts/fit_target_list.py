@@ -11,7 +11,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mega-csv", default=None, help="Path to Mega target list CSV")
     parser.add_argument("--phot-csv", default=None, help="Path to photometry CSV")
     parser.add_argument("--hostnames", nargs="*", default=None, help="Optional list of hostnames to fit")
-    parser.add_argument("--output-csv", default="outputs/results/interpolate_best_fit_results.csv")
+    parser.add_argument("--output-csv", default=None, help="Optional output CSV path. Defaults to timestamped file in outputs/results.")
     parser.add_argument("--stop-on-error", action="store_true", help="Stop on first failed target")
     parser.add_argument("--quiet", action="store_true")
     return parser.parse_args()
@@ -32,7 +32,8 @@ def main() -> None:
         runtime_kwargs["phot_csv_path"] = args.phot_csv
 
     fits, failures = fit_target_list_runtime(**runtime_kwargs)
-    print(f"success={len(fits)} failures={len(failures)} output={args.output_csv}")
+    output_label = args.output_csv if args.output_csv is not None else "auto-timestamped in outputs/results"
+    print(f"success={len(fits)} failures={len(failures)} output={output_label}")
 
 
 if __name__ == "__main__":
