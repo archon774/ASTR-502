@@ -18,6 +18,7 @@ class FitResultSchema:
     chi2_total: float
     distance_pc: float
     model_magnitudes: Mapping[str, float] = field(default_factory=dict)
+    mcmc_summary: Mapping[str, Mapping[str, float]] | None = None
 
     def to_record(self) -> dict[str, float | str]:
         record: dict[str, float | str] = {
@@ -33,4 +34,9 @@ class FitResultSchema:
         }
         for band, mag in self.model_magnitudes.items():
             record[f"model_{band}"] = mag
+
+        if self.mcmc_summary is not None:
+            for param_name, stats in self.mcmc_summary.items():
+                for stat_name, value in stats.items():
+                    record[f"mcmc_{param_name}_{stat_name}"] = float(value)
         return record
