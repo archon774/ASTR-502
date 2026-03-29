@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import concurrent.futures
 from collections.abc import Iterable
+from functools import partial
 
 from src.astr502.data.catalogs import DEFAULT_MEGA_CSV, DEFAULT_PHOT_CSV
 from src.astr502.domain.schemas import FitResultSchema
@@ -89,14 +90,15 @@ def fit_target_list_runtime(
 def _fit_hostname_worker(
     hostname: str,
     *,
-    mega_csv_path: str,
-    phot_csv_path: str,
     verbose: bool,
     fit_kwargs: dict,
 ) -> FitResultSchema:
-    load_catalogs(mega_csv_path=mega_csv_path, phot_csv_path=phot_csv_path)
     fit, _ = fit_best_params(hostname=hostname, verbose=verbose, **fit_kwargs)
     return fit
+
+
+def _process_pool_initializer(mega_csv_path: str, phot_csv_path: str) -> None:
+    load_catalogs(mega_csv_path=mega_csv_path, phot_csv_path=phot_csv_path)
 
 
 def _fit_hostnames_parallel(
@@ -123,16 +125,20 @@ def _fit_hostnames_parallel(
     fits_by_hostname: dict[str, FitResultSchema] = {}
     failures: list[tuple[str, str]] = []
 
-    with executor_type(max_workers=worker_count) as executor:
+    worker = partial(_fit_hostname_worker, verbose=verbose, fit_kwargs=fit_kwargs)
+
+    executor_kwargs = {"max_workers": worker_count}
+    if parallel_backend == "processes":
+        executor_kwargs.update(
+            {
+                "initializer": _process_pool_initializer,
+                "initargs": (mega_csv_path, phot_csv_path),
+            }
+        )
+
+    with executor_type(**executor_kwargs) as executor:
         futures = {
-            executor.submit(
-                _fit_hostname_worker,
-                hostname,
-                mega_csv_path=mega_csv_path,
-                phot_csv_path=phot_csv_path,
-                verbose=verbose,
-                fit_kwargs=fit_kwargs,
-            ): hostname
+            executor.submit(worker, hostname): hostname
             for hostname in host_list
         }
 
