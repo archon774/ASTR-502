@@ -16,13 +16,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--workers",
         type=int,
-        default=1,
+        default=12,
         help="Number of parallel workers. Use >1 to process hostnames concurrently.",
     )
     parser.add_argument(
         "--parallel-backend",
         choices=("threads", "processes"),
-        default="threads",
+        default="processes",
         help="Parallel executor backend when --workers > 1.",
     )
     parser.add_argument("--no-emcee", action="store_true", help="Disable emcee sampling to speed up batch fitting")

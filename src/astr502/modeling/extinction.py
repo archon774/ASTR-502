@@ -42,13 +42,7 @@ def get_band_extinction(
     if ReddeningLaw is None or u is None:
         raise ImportError("synphot and astropy are required for extinction support")
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=r".*1 / micron.*Numeric factor not supported by FITS.*",
-            category=UnitsWarning,
-        )
-        law = ReddeningLaw.from_extinction_model(extinction_model)
+    law = ReddeningLaw.from_extinction_model(extinction_model)
     ebv = av / rv
     curve = law.extinction_curve(ebv)
 
