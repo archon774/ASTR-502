@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import numpy as np
+import warnings
 
 try:
     from synphot.reddening import ReddeningLaw
     import astropy.units as u
+    from astropy.units import UnitsWarning
 except ImportError:  # optional dependency
     ReddeningLaw = None
     u = None
+    UnitsWarning = Warning
 
 BAND_EFFECTIVE_WAVELENGTH_ANGSTROM = {
     "G": 6730.0,
@@ -39,7 +42,13 @@ def get_band_extinction(
     if ReddeningLaw is None or u is None:
         raise ImportError("synphot and astropy are required for extinction support")
 
-    law = ReddeningLaw.from_extinction_model(extinction_model)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r".*1 / micron.*Numeric factor not supported by FITS.*",
+            category=UnitsWarning,
+        )
+        law = ReddeningLaw.from_extinction_model(extinction_model)
     ebv = av / rv
     curve = law.extinction_curve(ebv)
 
