@@ -47,7 +47,7 @@ class LoggingUtils:
         return Path(output_dir) / f"{prefix}_{stamp}_{suffix}"
 
     @staticmethod
-    def configure_debug_logging(log_dir: str | Path = "outputs/logs", run_stamp: str | None = None) -> Path:
+    def configure_debug_logging(log_dir: str | Path = "/Users/archon/classes/ASTR_502/workstation/outputs/logs", run_stamp: str | None = None) -> Path:
         logs_path = Path(log_dir)
         logs_path.mkdir(parents=True, exist_ok=True)
         stamp = run_stamp if run_stamp is not None else LoggingUtils.run_timestamp()

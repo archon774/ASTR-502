@@ -327,7 +327,7 @@ def save_fit_results_to_csv(
         Path(output_csv)
         if output_csv is not None
         else LoggingUtils.timestamped_output_path(
-            output_dir="outputs/results",
+            output_dir="/Users/archon/classes/ASTR_502/workstation/outputs/results",
             suffix="candidate_fits.csv",
             run_stamp=run_stamp,
         )
