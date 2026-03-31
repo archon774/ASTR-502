@@ -12,8 +12,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mega-csv", default=None, help="Path to Mega target list CSV")
     parser.add_argument("--phot-csv", default=None, help="Path to photometry CSV")
     parser.add_argument("--output-csv", default=None, help="Optional one-row output CSV")
-    parser.add_argument("--sigma-phot", type=float, default=0.5)
-    parser.add_argument("--fallback-sigma-param", type=float, default=0.25)
     parser.add_argument("--av-min", type=float, default=0.0)
     parser.add_argument("--av-max", type=float, default=3.0)
     parser.add_argument("--quiet", action="store_true")
@@ -23,8 +21,6 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     kwargs = {
-        "sigma_phot": args.sigma_phot,
-        "fallback_sigma_param": args.fallback_sigma_param,
         "av_bounds": (args.av_min, args.av_max),
         "verbose": not args.quiet,
     }

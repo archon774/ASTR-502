@@ -62,10 +62,10 @@ def chi2_prior(
     chi2 = 0.0
 
     if np.isfinite(prior["m0"]):
-        chi2 += ((mass - prior["m0"]) / prior["sig_m"]) ** 2
+        chi2 += (mass - prior["m0"]) ** 2
 
     if np.isfinite(prior["feh0"]):
-        chi2 += ((feh - prior["feh0"]) / prior["sig_feh"]) ** 2
+        chi2 += (feh - prior["feh0"]) ** 2
 
     if np.isfinite(prior["a0_gyr"]):
         age_gyr = (10.0 ** log10_age) / 1e9
@@ -93,78 +93,3 @@ def summarize_chi_square(
     chi2_reg = chi2_prior(mass=mass, log10_age=log10_age, feh=feh, prior=prior)
     return ChiSquareSummary(chi2_phot=chi2_data, chi2_prior=chi2_reg)
 
-
-def reduced_chi2_from_csv(csv_path: str | Path, n_fit_params: int = 4) -> dict[str, float]:
-    """Compute reduced chi-square values for each star in a fit-results CSV.
-
-    The CSV is expected to include:
-      - ``hostname``
-      - either ``chi2`` or ``chi2_total``
-      - one or more ``model_*`` columns for the fitted photometric bands
-
-    If ``reduced_chi2`` is already present in the CSV, its value is reused.
-    If ``n_obs_bands`` is present, that value is used for the per-row number
-    of photometric constraints. Otherwise finite ``model_*`` columns are used
-    as a fallback approximation.
-
-    The per-row degrees of freedom are computed as::
-
-        dof = N_model_bands_with_finite_values - n_fit_params
-
-    where ``n_fit_params`` defaults to 4 (mass, age, [Fe/H], Av).
-    """
-    path = Path(csv_path)
-    reduced: dict[str, float] = {}
-
-    with path.open(newline="", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle)
-        if reader.fieldnames is None:
-            return reduced
-
-        fieldnames = set(reader.fieldnames)
-        chi2_col = "chi2" if "chi2" in fieldnames else "chi2_total"
-        if chi2_col not in fieldnames:
-            raise ValueError("CSV must include either 'chi2' or 'chi2_total'.")
-
-        has_reduced_col = "reduced_chi2" in fieldnames
-        has_n_obs_col = "n_obs_bands" in fieldnames
-        model_cols = [name for name in reader.fieldnames if name.startswith("model_")]
-        if not has_reduced_col and not has_n_obs_col and not model_cols:
-            raise ValueError(
-                "CSV must include 'reduced_chi2', 'n_obs_bands', or at least one 'model_*' column."
-            )
-
-        for row in reader:
-            hostname = row.get("hostname", "")
-            if not hostname:
-                continue
-
-            if has_reduced_col:
-                try:
-                    val = float(row.get("reduced_chi2", ""))
-                    if np.isfinite(val):
-                        reduced[hostname] = val
-                        continue
-                except (TypeError, ValueError):
-                    pass
-
-            chi2_val = float(row[chi2_col])
-
-            if has_n_obs_col:
-                try:
-                    n_bands = int(float(row.get("n_obs_bands", "")))
-                except (TypeError, ValueError):
-                    n_bands = 0
-            else:
-                n_bands = 0
-                for col in model_cols:
-                    value = row.get(col, "")
-                    try:
-                        if np.isfinite(float(value)):
-                            n_bands += 1
-                    except (TypeError, ValueError):
-                        continue
-
-            reduced[hostname] = reduced_chi2(chi2_val, n_obs_bands=n_bands, n_fit_params=n_fit_params)
-
-    return reduced

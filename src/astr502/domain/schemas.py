@@ -16,8 +16,8 @@ class FitResultSchema:
     chi2_phot: float
     chi2_prior: float
     chi2_total: float
+    chi2_reduced: float
     n_obs_bands: int
-    reduced_chi2: float
     distance_pc: float
     model_magnitudes: Mapping[str, float] = field(default_factory=dict)
     mcmc_summary: Mapping[str, Mapping[str, float]] | None = None
@@ -32,8 +32,8 @@ class FitResultSchema:
             "chi2_phot": self.chi2_phot,
             "chi2_prior": self.chi2_prior,
             "chi2_total": self.chi2_total,
+            "chi2_reduced": self.chi2_reduced,
             "n_obs_bands": self.n_obs_bands,
-            "reduced_chi2": self.reduced_chi2,
             "distance_pc": self.distance_pc,
         }
         for band, mag in self.model_magnitudes.items():

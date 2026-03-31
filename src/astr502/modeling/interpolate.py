@@ -183,7 +183,6 @@ def get_model_mag(mass: float, age: float, feh: float, av: float = 0.0) -> dict[
 
 def fit_best_params(
     hostname: str,
-    fallback_sigma_param: float = 0.25,
     av_bounds: tuple[float, float] = (0.0, 3.0),
     bounds: list[tuple[float, float]] | None = None,
     run_emcee: bool = True,
@@ -199,12 +198,11 @@ def fit_best_params(
         hostname,
         mega_df=mega_df,
         phot_df=phot_df,
-        fallback_sigma=fallback_sigma_param,
     )
 
-    m0 = prior["m0"] if np.isfinite(prior["m0"]) else 1.0
-    a0 = prior["a0_gyr"] if np.isfinite(prior["a0_gyr"]) else 5.0
-    feh0 = prior["feh0"] if np.isfinite(prior["feh0"]) else 0.0
+    m0 = prior["m0"]
+    a0 = prior["a0_gyr"]
+    feh0 = prior["feh0"]
     x0 = np.array([m0, np.log10(a0 * 1e9), feh0, 0.0], dtype=float)
 
     if bounds is None:
@@ -267,8 +265,8 @@ def fit_best_params(
         chi2_phot=float(chi2.chi2_phot),
         chi2_prior=float(chi2.chi2_prior),
         chi2_total=float(chi2.chi2_total),
+        chi2_reduced=reduced_chi2(chi2_total=chi2.chi2_total, n_obs_bands=len(obs_abs)),
         n_obs_bands=len(obs_abs),
-        reduced_chi2=reduced_chi2(chi2_total=chi2.chi2_total, n_obs_bands=len(obs_abs)),
         distance_pc=float(distance_pc),
         model_magnitudes=model_best,
         mcmc_summary=mcmc_summary,
@@ -282,6 +280,9 @@ def fit_best_params(
         logger.info("  feh  = %.4f dex", fit.feh)
         logger.info("  Av   = %.4f mag", fit.av)
         logger.info("  chi2_total = %.3f", fit.chi2_total)
+        logger.info("  chi2_phot = %.3f", fit.chi2_phot)
+        logger.info("  chi2_prior = %.3f", fit.chi2_prior)
+        logger.info("  chi2_reduced = %.3f", fit.chi2_reduced)
         logger.info("  N_obs_bands = %.3f", fit.n_obs_bands)
         logger.info("  d_pc used = %.3f", fit.distance_pc)
         logger.info("  success = %s | %s", result.success, result.message)
