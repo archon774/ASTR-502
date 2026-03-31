@@ -19,6 +19,16 @@ OBS_MAP = {
     "W1": "w1mag",
 }
 
+OBS_ERR_MAP = {
+    "G": "e_gaiaGmag",
+    "BP": "e_gaiaBPmag",
+    "RP": "e_gaiaRPmag",
+    "J": "e_Jmag",
+    "H": "e_Hmag",
+    "K": "e_Kmag",
+    "W1": "e_w1mag",
+}
+
 
 class CatalogUtils:
     @staticmethod
@@ -40,7 +50,7 @@ class CatalogUtils:
         hostname: str,
         mega_df: pd.DataFrame,
         phot_df: pd.DataFrame,
-    ) -> tuple[dict[str, float], float]:
+    ) -> tuple[dict[str, float], dict[str, float], float]:
         mrow, prow = CatalogUtils.get_star_rows(hostname, mega_df=mega_df, phot_df=phot_df)
 
         distance_pc = float(mrow["bj_dist_pc"])
@@ -48,14 +58,25 @@ class CatalogUtils:
             raise ValueError(f"{hostname}: invalid bj_dist_pc={distance_pc}")
 
         obs_abs: dict[str, float] = {}
+        obs_abs_err: dict[str, float] = {}
         for band, col in OBS_MAP.items():
-            if col in prow.index and np.isfinite(prow[col]):
-                obs_abs[band] = CatalogUtils.apparent_to_absolute(float(prow[col]), distance_pc)
+            err_col = OBS_ERR_MAP.get(band)
+            if col not in prow.index or err_col is None or err_col not in prow.index:
+                continue
+            if not np.isfinite(prow[col]) or not np.isfinite(prow[err_col]):
+                continue
+
+            band_err = float(prow[err_col])
+            if band_err <= 0:
+                continue
+
+            obs_abs[band] = CatalogUtils.apparent_to_absolute(float(prow[col]), distance_pc)
+            obs_abs_err[band] = band_err
 
         if len(obs_abs) < 3:
             raise ValueError(f"{hostname}: only {len(obs_abs)} usable bands; need >= 3 for a stable fit")
 
-        return obs_abs, distance_pc
+        return obs_abs, obs_abs_err, distance_pc
 
     @staticmethod
     def get_param_prior(hostname: str, mega_df: pd.DataFrame, phot_df: pd.DataFrame, fallback_sigma: float = 0.25) -> dict[str, float]:
