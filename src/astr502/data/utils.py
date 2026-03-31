@@ -20,13 +20,6 @@ BAND_COLUMN_CANDIDATES = {
     "H": ("H_mag", "2MASS_H", "H"),
     "K": ("K_mag", "2MASS_Ks", "K"),
     "W1": ("W1_mag", "WISE_W1", "W1"),
-    "W2": ("W2_mag", "WISE_W2", "W2"),
-    "W3": ("W3_mag", "WISE_W3", "W3"),
-    "W4": ("W4_mag", "WISE_W4", "W4"),
-    "g": ("g_mag", "SDSS_g", "g"),
-    "r": ("r_mag", "SDSS_r", "r"),
-    "i": ("i_mag", "SDSS_i", "i"),
-    "z": ("z_mag", "SDSS_z", "z"),
 }
 
 

@@ -31,7 +31,7 @@ class FitResultSchema:
             "av": self.av,
             "chi2_phot": self.chi2_phot,
             "chi2_prior": self.chi2_prior,
-            "chi2": self.chi2_total,
+            "chi2_total": self.chi2_total,
             "n_obs_bands": self.n_obs_bands,
             "reduced_chi2": self.reduced_chi2,
             "distance_pc": self.distance_pc,

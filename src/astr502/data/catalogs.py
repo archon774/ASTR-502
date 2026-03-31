@@ -10,20 +10,13 @@ DEFAULT_MEGA_CSV = "/Users/archon/classes/ASTR_502/workstation/data/raw/catalogs
 DEFAULT_PHOT_CSV = "/Users/archon/classes/ASTR_502/workstation/data/raw/catalogs/ASTR502_Master_Photometry_List.csv"
 
 OBS_MAP = {
-    "G": "gaia_Gmag",
-    "BP": "gaia_BPmag",
-    "RP": "gaia_RPmag",
+    "G": "gaiaGmag",
+    "BP": "gaiaBPmag",
+    "RP": "gaiaRPmag",
     "J": "Jmag",
     "H": "Hmag",
     "K": "Kmag",
     "W1": "w1mag",
-    "W2": "w2mag",
-    "W3": "w3mag",
-    "W4": "w4mag",
-    "g": "gmag",
-    "r": "rmag",
-    "i": "imag",
-    "z": "zmag",
 }
 
 
