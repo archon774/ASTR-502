@@ -10,7 +10,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-REQUESTED_BANDS = ("G", "BP", "RP", "J", "H", "K", "W1", "W2", "W3", "W4", "g", "r", "i", "z")
+REQUESTED_BANDS = ("G", "BP", "RP", "J", "H", "K", "W1")
 
 BAND_COLUMN_CANDIDATES = {
     "G": ("G_mag", "Gaia_G_EDR3", "G"),

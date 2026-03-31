@@ -183,7 +183,6 @@ def get_model_mag(mass: float, age: float, feh: float, av: float = 0.0) -> dict[
 
 def fit_best_params(
     hostname: str,
-    sigma_phot: float = 0.5,
     fallback_sigma_param: float = 0.25,
     av_bounds: tuple[float, float] = (0.0, 3.0),
     bounds: list[tuple[float, float]] | None = None,
@@ -220,7 +219,6 @@ def fit_best_params(
         return summarize_chi_square(
             model_mags=model,
             observed_abs_mags=obs_abs,
-            sigma_phot=sigma_phot,
             mass=mass,
             log10_age=log10_age,
             feh=feh,
@@ -230,12 +228,11 @@ def fit_best_params(
     result = minimize(objective, x0=x0, bounds=bounds, method="L-BFGS-B")
     mass_b, log10_age_b, feh_b, av_b = result.x
     age_yr_b = 10.0 ** log10_age_b
-    age_gyr_b = age_yr_b / 1e9
+    age_gyr_b = age_yr_b / 1e9 #remove in future
     model_best = get_model_mag(mass=mass_b, age=age_yr_b, feh=feh_b, av=av_b)
     chi2 = summarize_chi_square(
         model_mags=model_best,
         observed_abs_mags=obs_abs,
-        sigma_phot=sigma_phot,
         mass=mass_b,
         log10_age=log10_age_b,
         feh=feh_b,
@@ -246,7 +243,7 @@ def fit_best_params(
     if run_emcee:
         rng = np.random.default_rng(random_seed)
         ndim = 4
-        log_prob = _make_log_probability(obs_abs=obs_abs, prior=prior, sigma_phot=sigma_phot, bounds=bounds)
+        log_prob = _make_log_probability(obs_abs=obs_abs, prior=prior, bounds=bounds)
 
         p0 = result.x + 1e-3 * rng.normal(size=(nwalkers, ndim))
         for i, (low, high) in enumerate(bounds):
@@ -283,6 +280,7 @@ def fit_best_params(
         logger.info("  feh  = %.4f dex", fit.feh)
         logger.info("  Av   = %.4f mag", fit.av)
         logger.info("  chi2_total = %.3f", fit.chi2_total)
+        logger.info("  N_obs_bands = %.3f", fit.n_obs_bands)
         logger.info("  d_pc used = %.3f", fit.distance_pc)
         logger.info("  success = %s | %s", result.success, result.message)
         if mcmc_summary is not None:
