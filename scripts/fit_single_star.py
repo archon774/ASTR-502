@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import sys
+from pathlib import Path
 
-from src.astr502.services.fit_runtime import fit_single_star_runtime
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def parse_args() -> argparse.Namespace:
@@ -20,6 +24,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    from src.astr502.services.fit_runtime import fit_single_star_runtime
+
     kwargs = {
         "av_bounds": (args.av_min, args.av_max),
         "verbose": not args.quiet,
