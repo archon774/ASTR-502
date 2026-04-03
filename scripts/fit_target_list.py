@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
         default="processes",
         help="Parallel executor backend when --workers > 1.",
     )
-    parser.add_argument("--no-emcee", default=True, help="Disable emcee sampling to speed up batch fitting")
+    parser.add_argument("--emcee", action="store_true", help="Disable emcee sampling to speed up batch fitting")
     parser.add_argument("--nwalkers", type=int, default=None, help="Override emcee nwalkers")
     parser.add_argument("--nsteps", type=int, default=None, help="Override emcee nsteps")
     parser.add_argument("--burn-in", type=int, default=None, help="Override emcee burn-in")
