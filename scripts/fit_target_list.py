@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--workers",
         type=int,
-        default=12,
+        default=1,
         help="Number of parallel workers. Use >1 to process hostnames concurrently.",
     )
     parser.add_argument(

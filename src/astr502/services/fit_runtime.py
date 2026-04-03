@@ -53,6 +53,7 @@ def fit_target_list_runtime(
     verbose: bool = True,
     workers: int = 1,
     parallel_backend: str = "threads",
+    run_emcee: bool = False,
     **fit_kwargs,
 ) -> tuple[list[FitResultSchema], list[tuple[str, str]]]:
     """Runtime helper to fit a user-provided or catalog-derived host list."""
@@ -76,7 +77,7 @@ def fit_target_list_runtime(
     if worker_count == 1:
         for hostname in hostnames:
             try:
-                fit, _ = fit_best_params(hostname=hostname, verbose=verbose, **fit_kwargs)
+                fit, _ = fit_best_params(hostname=hostname, verbose=verbose, run_emcee=run_emcee, **fit_kwargs)
                 fits.append(fit)
             except Exception as exc:
                 if not continue_on_error:
@@ -93,7 +94,7 @@ def fit_target_list_runtime(
             worker_count=worker_count,
             parallel_backend=parallel_backend,
             verbose=verbose,
-            fit_kwargs=fit_kwargs,
+            fit_kwargs={"run_emcee": run_emcee, **fit_kwargs},
             continue_on_error=continue_on_error,
         )
         fits.extend(completed)

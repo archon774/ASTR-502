@@ -185,7 +185,7 @@ def fit_best_params(
     hostname: str,
     av_bounds: tuple[float, float] = (0.0, 3.0),
     bounds: list[tuple[float, float]] | None = None,
-    run_emcee: bool = True,
+    run_emcee: bool = False,
     nwalkers: int = 32,
     nsteps: int = 1200,
     burn_in: int = 300,
