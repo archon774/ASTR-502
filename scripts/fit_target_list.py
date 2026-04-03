@@ -48,14 +48,16 @@ def main() -> None:
         "verbose": not args.quiet,
         "workers": args.workers,
         "parallel_backend": args.parallel_backend,
-        "run_emcee": not args.no_emcee,
+        "run_emcee": args.emcee,
     }
-    if args.nwalkers is not None:
-        runtime_kwargs["nwalkers"] = args.nwalkers
-    if args.nsteps is not None:
-        runtime_kwargs["nsteps"] = args.nsteps
-    if args.burn_in is not None:
-        runtime_kwargs["burn_in"] = args.burn_in
+    if args.emcee:
+        if args.nwalkers is not None:
+            runtime_kwargs["nwalkers"] = args.nwalkers
+        if args.nsteps is not None:
+            runtime_kwargs["nsteps"] = args.nsteps
+        if args.burn_in is not None:
+            runtime_kwargs["burn_in"] = args.burn_in
+
     if args.mega_csv:
         runtime_kwargs["mega_csv_path"] = args.mega_csv
     if args.phot_csv:
