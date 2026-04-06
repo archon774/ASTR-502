@@ -33,7 +33,7 @@ def reduced_chi2(chi2_total: float, n_obs_bands: int, n_fit_params: int = 4) -> 
 def chi2_photometric(
     model_mags: Mapping[str, float],
     observed_abs_mags: Mapping[str, float],
-    sigma_phot: float,
+    observed_abs_mag_errors: Mapping[str, float],
 ) -> float:
     """Compute photometric chi-square using all overlapping finite bands."""
     chi2 = 0.0
@@ -41,9 +41,10 @@ def chi2_photometric(
 
     for band, observed in observed_abs_mags.items():
         predicted = model_mags.get(band, np.nan)
-        if not np.isfinite(predicted):
+        sigma = observed_abs_mag_errors.get(band, np.nan)
+        if not np.isfinite(predicted) or not np.isfinite(sigma) or sigma <= 0:
             continue
-        chi2 += ((observed - predicted) / sigma_phot) ** 2
+        chi2 += ((observed - predicted) / sigma) ** 2
         n_used += 1
 
     if n_used == 0:
@@ -77,7 +78,7 @@ def chi2_prior(
 def summarize_chi_square(
     model_mags: Mapping[str, float],
     observed_abs_mags: Mapping[str, float],
-    sigma_phot: float,
+    observed_abs_mag_errors: Mapping[str, float],
     mass: float,
     log10_age: float,
     feh: float,
@@ -87,7 +88,7 @@ def summarize_chi_square(
     chi2_data = chi2_photometric(
         model_mags=model_mags,
         observed_abs_mags=observed_abs_mags,
-        sigma_phot=sigma_phot,
+        observed_abs_mag_errors=observed_abs_mag_errors,
     )
     chi2_reg = chi2_prior(mass=mass, log10_age=log10_age, feh=feh, prior=prior)
     return ChiSquareSummary(chi2_phot=chi2_data, chi2_prior=chi2_reg)

@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 def _make_log_probability(
     obs_abs: dict[str, float],
+    obs_abs_err: dict[str, float],
     prior: dict[str, float],
-    sigma_phot: float,
     bounds: list[tuple[float, float]],
 ):
     (mass_min, mass_max), (logage_min, logage_max), (feh_min, feh_max), (av_min, av_max) = bounds
@@ -46,7 +46,7 @@ def _make_log_probability(
         chi2 = summarize_chi_square(
             model_mags=model,
             observed_abs_mags=obs_abs,
-            sigma_phot=sigma_phot,
+            observed_abs_mag_errors=obs_abs_err,
             mass=mass,
             log10_age=log10_age,
             feh=feh,
@@ -183,7 +183,7 @@ def get_model_mag(mass: float, age: float, feh: float, av: float = 0.0) -> dict[
 
 def fit_best_params(
     hostname: str,
-    sigma_phot: float = 0.5,
+    sigma_phot: float | None = None,
     fallback_sigma_param: float = 0.25,
     av_bounds: tuple[float, float] = (0.0, 3.0),
     bounds: list[tuple[float, float]] | None = None,
@@ -194,8 +194,13 @@ def fit_best_params(
     random_seed: int = 42,
     verbose: bool = True,
 ) -> tuple[FitResultSchema, object]:
+    _ = sigma_phot
     mega_df, phot_df = _CATALOG_STORE.ensure_loaded()
-    obs_abs, distance_pc = CatalogUtils.get_star_obs_abs(hostname, mega_df=mega_df, phot_df=phot_df)
+    obs_abs, obs_abs_err, distance_pc = CatalogUtils.get_star_obs_abs_with_errors(
+        hostname,
+        mega_df=mega_df,
+        phot_df=phot_df,
+    )
     prior = CatalogUtils.get_param_prior(
         hostname,
         mega_df=mega_df,
@@ -220,7 +225,7 @@ def fit_best_params(
         return summarize_chi_square(
             model_mags=model,
             observed_abs_mags=obs_abs,
-            sigma_phot=sigma_phot,
+            observed_abs_mag_errors=obs_abs_err,
             mass=mass,
             log10_age=log10_age,
             feh=feh,
@@ -235,7 +240,7 @@ def fit_best_params(
     chi2 = summarize_chi_square(
         model_mags=model_best,
         observed_abs_mags=obs_abs,
-        sigma_phot=sigma_phot,
+        observed_abs_mag_errors=obs_abs_err,
         mass=mass_b,
         log10_age=log10_age_b,
         feh=feh_b,
@@ -246,7 +251,7 @@ def fit_best_params(
     if run_emcee:
         rng = np.random.default_rng(random_seed)
         ndim = 4
-        log_prob = _make_log_probability(obs_abs=obs_abs, prior=prior, sigma_phot=sigma_phot, bounds=bounds)
+        log_prob = _make_log_probability(obs_abs=obs_abs, obs_abs_err=obs_abs_err, prior=prior, bounds=bounds)
 
         p0 = result.x + 1e-3 * rng.normal(size=(nwalkers, ndim))
         for i, (low, high) in enumerate(bounds):
