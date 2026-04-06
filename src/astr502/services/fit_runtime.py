@@ -6,6 +6,8 @@ from functools import partial
 import logging
 import time
 
+import pandas as pd
+
 from src.astr502.data.catalogs import DEFAULT_MEGA_CSV, DEFAULT_PHOT_CSV
 from src.astr502.data.utils import LoggingUtils
 from src.astr502.domain.schemas import FitResultSchema
@@ -29,6 +31,11 @@ def fit_single_star_runtime(
     logger.info("Starting single-star interpolation run at %s for hostname=%s", run_stamp, hostname)
 
     load_catalogs(mega_csv_path=mega_csv_path, phot_csv_path=phot_csv_path)
+
+    _, skipped = _filter_hostnames_with_valid_age(mega_csv_path=mega_csv_path, hostnames=[hostname])
+    if skipped:
+        raise ValueError(f"{hostname}: skipped because st_age is missing or non-positive")
+
     fit, _ = fit_best_params(hostname=hostname, **fit_kwargs)
     saved_csv_path = save_fit_results_to_csv([fit], output_csv=output_csv, run_stamp=run_stamp)
 
@@ -65,13 +72,20 @@ def fit_target_list_runtime(
     load_catalogs(mega_csv_path=mega_csv_path, phot_csv_path=phot_csv_path)
 
     if hostnames is None:
-        import pandas as pd
-
         mega_df = pd.read_csv(mega_csv_path)
         hostnames = [str(h) for h in mega_df["hostname"].dropna().unique().tolist()]
 
+    hostnames, skipped_for_age = _filter_hostnames_with_valid_age(
+        mega_csv_path=mega_csv_path,
+        hostnames=hostnames,
+    )
+    if skipped_for_age:
+        logger.info("Skipping %d targets with missing/invalid st_age values", len(skipped_for_age))
+        if verbose:
+            print(f"Skipped {len(skipped_for_age)} targets with missing/invalid st_age values")
+
     fits: list[FitResultSchema] = []
-    failures: list[tuple[str, str]] = []
+    failures: list[tuple[str, str]] = [(hostname, "missing_or_invalid_st_age") for hostname in skipped_for_age]
     worker_count = max(1, int(workers))
 
     if worker_count == 1:
@@ -126,6 +140,25 @@ def fit_target_list_runtime(
             print(f"Saved successful fits to: {saved_csv_path}")
 
     return fits, failures
+
+
+def _filter_hostnames_with_valid_age(
+    *,
+    mega_csv_path: str,
+    hostnames: Iterable[str],
+) -> tuple[list[str], list[str]]:
+    mega_df = pd.read_csv(mega_csv_path, usecols=["hostname", "st_age"])
+    mega_df = mega_df.dropna(subset=["hostname"]).copy()
+    mega_df["hostname"] = mega_df["hostname"].astype(str)
+    mega_df["st_age"] = pd.to_numeric(mega_df["st_age"], errors="coerce")
+
+    valid_age_mask = mega_df["st_age"].notna() & (mega_df["st_age"] > 0)
+    valid_hostnames = set(mega_df.loc[valid_age_mask, "hostname"].tolist())
+
+    requested = [str(hostname) for hostname in hostnames]
+    filtered = [hostname for hostname in requested if hostname in valid_hostnames]
+    skipped = [hostname for hostname in requested if hostname not in valid_hostnames]
+    return filtered, skipped
 
 
 def _fit_hostname_worker(
