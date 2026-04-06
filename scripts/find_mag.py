@@ -12,6 +12,8 @@ class PhotometryMerger:
     GAIA_RP_CANDS = ['gaiaRPmag']
     PARALLAX_CANDS = ['parallax', 'plx', 'parallax_mas']
     DIST_CANDS = ['dist_pc']
+    MASS_CANDS = ['st_mass', 'mass']
+    AGE_CANDS = ['st_age', 'age']
 
     def __init__(self,
                  extra_join_candidates: Optional[Iterable[str]] = None):
@@ -104,6 +106,13 @@ class PhotometryMerger:
         hostname_col = self._find_col(joined, ['hostname'])
         if hostname_col is not None and hostname_col != 'hostname':
             joined['hostname'] = joined[hostname_col]
+
+        mass_col = self._find_col(joined, self.MASS_CANDS)
+        age_col = self._find_col(joined, self.AGE_CANDS)
+        if mass_col is not None and age_col is not None:
+            joined[mass_col] = pd.to_numeric(joined[mass_col], errors='coerce')
+            joined[age_col] = pd.to_numeric(joined[age_col], errors='coerce')
+            joined = joined.dropna(subset=[mass_col, age_col]).copy()
         return joined
 
     @staticmethod
