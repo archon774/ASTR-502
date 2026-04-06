@@ -63,7 +63,8 @@ class PhotometryMerger:
                                       phot_csv: Path | str,
                                       dist_csv: Path | str,
                                       on: Optional[str] = None,
-                                      how: str = 'inner') -> pd.DataFrame:
+                                      how: str = 'inner',
+                                      csv: Path | str = 'joined_photometry_debug.csv') -> pd.DataFrame:
         phot_df = pd.read_csv(phot_csv)
         dist_df = pd.read_csv(dist_csv)
 
@@ -113,6 +114,10 @@ class PhotometryMerger:
             joined[mass_col] = pd.to_numeric(joined[mass_col], errors='coerce')
             joined[age_col] = pd.to_numeric(joined[age_col], errors='coerce')
             joined = joined.dropna(subset=[mass_col, age_col]).copy()
+
+        csv_path = Path(csv)
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        joined.to_csv(csv_path, index=False)
         return joined
 
     @staticmethod
