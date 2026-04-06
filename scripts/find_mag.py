@@ -64,7 +64,7 @@ class PhotometryMerger:
                                       dist_csv: Path | str,
                                       on: Optional[str] = None,
                                       how: str = 'inner',
-                                      csv: Path | str = 'joined_photometry_debug.csv') -> pd.DataFrame:
+                                      csv: Path | str = '') -> pd.DataFrame:
         phot_df = pd.read_csv(phot_csv)
         dist_df = pd.read_csv(dist_csv)
 
