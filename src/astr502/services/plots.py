@@ -7,6 +7,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
+from matplotlib.lines import Line2D
 
 from src.astr502.data.utils import LoggingUtils
 
@@ -96,17 +97,28 @@ def plot_observed_vs_table_age_scatter(
     fig, ax = plt.subplots(figsize=(9, 6))
 
     reduced = np.asarray(reduced_chi2_values, dtype=float)
-    # Keep color scale anchored near reduced-chi2=1 and saturate outliers.
-    # This prevents a single pathological point from forcing scientific-notation
-    # colorbars that hide structure in the bulk distribution.
+    # Keep color scale anchored near reduced-chi2=1 without clipping/removing data.
+    # Out-of-range values map to the end colors of the colormap.
     vmin, vmax = 0.0, 2.0
-    reduced_for_color = np.where(np.isfinite(reduced), np.clip(reduced, vmin, vmax), np.nan)
+    reduced_for_color = np.ma.masked_invalid(reduced)
 
     chi2_cmap = LinearSegmentedColormap.from_list(
         "chi2_blue_green_red",
         [(0.0, "#1f77b4"), (0.5, "#2ca02c"), (1.0, "#d62728")],
     )
     chi2_cmap.set_bad(color="0.65")
+    chi2_cmap.set_under("#1f77b4")
+    chi2_cmap.set_over("#d62728")
+
+    # Counts use the same logic as color interpretation:
+    # blue = clearly below 1, green = close to 1, red = clearly above 1.
+    chi2_close_tolerance = 0.2
+    finite_reduced = reduced[np.isfinite(reduced)]
+    n_blue = int(np.sum(finite_reduced < 1.0 - chi2_close_tolerance))
+    n_green = int(
+        np.sum((finite_reduced >= 1.0 - chi2_close_tolerance) & (finite_reduced <= 1.0 + chi2_close_tolerance))
+    )
+    n_red = int(np.sum(finite_reduced > 1.0 + chi2_close_tolerance))
 
     scatter = ax.scatter(
         x_values,
@@ -121,6 +133,40 @@ def plot_observed_vs_table_age_scatter(
     cbar = fig.colorbar(scatter, ax=ax, pad=0.02)
     cbar.set_label(r"Reduced $\chi^2$")
     cbar.set_ticks([0.0, 0.5, 1.0, 1.5, 2.0])
+
+    legend_handles = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor="#1f77b4",
+            label=fr"Blue: $\chi^2_{{red}}$ < {1.0 - chi2_close_tolerance:.1f} (n={n_blue})",
+            markersize=7,
+        ),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor="#2ca02c",
+            label=(
+                fr"Green: |$\chi^2_{{red}}$-1| ≤ {chi2_close_tolerance:.1f} "
+                f"(n={n_green})"
+            ),
+            markersize=7,
+        ),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor="#d62728",
+            label=fr"Red: $\chi^2_{{red}}$ > {1.0 + chi2_close_tolerance:.1f} (n={n_red})",
+            markersize=7,
+        ),
+    ]
+    ax.legend(handles=legend_handles, loc="upper right", frameon=True, fontsize=9)
     ax.axvline(0.0, color="black", linestyle="--", linewidth=1.0)
     ax.set_xlim(-1,1)
     ax.set_xlabel(r"$(Age_{obs} - Age_{table}) / Age_{table}$")
