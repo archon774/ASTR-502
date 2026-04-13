@@ -96,15 +96,11 @@ def plot_observed_vs_table_age_scatter(
     fig, ax = plt.subplots(figsize=(9, 6))
 
     reduced = np.asarray(reduced_chi2_values, dtype=float)
-    finite = reduced[np.isfinite(reduced) & (reduced > 0)]
-    if finite.size:
-        # Visual scaling around reduced-chi2=1.
-        vmin = min(float(np.nanmin(finite)), 1.0)
-        vmax = max(float(np.nanmax(finite)), 1.0)
-        if vmin == vmax:
-            vmin, vmax = 0.5, 2.0
-    else:
-        vmin, vmax = 0.5, 2.0
+    # Keep color scale anchored near reduced-chi2=1 and saturate outliers.
+    # This prevents a single pathological point from forcing scientific-notation
+    # colorbars that hide structure in the bulk distribution.
+    vmin, vmax = 0.0, 2.0
+    reduced_for_color = np.where(np.isfinite(reduced), np.clip(reduced, vmin, vmax), np.nan)
 
     chi2_cmap = LinearSegmentedColormap.from_list(
         "chi2_blue_green_red",
@@ -115,7 +111,7 @@ def plot_observed_vs_table_age_scatter(
     scatter = ax.scatter(
         x_values,
         y_values,
-        c=reduced,
+        c=reduced_for_color,
         cmap=chi2_cmap,
         norm=TwoSlopeNorm(vmin=vmin, vcenter=1.0, vmax=vmax),
         s=24,
@@ -124,6 +120,7 @@ def plot_observed_vs_table_age_scatter(
 
     cbar = fig.colorbar(scatter, ax=ax, pad=0.02)
     cbar.set_label(r"Reduced $\chi^2$")
+    cbar.set_ticks([0.0, 0.5, 1.0, 1.5, 2.0])
     ax.axvline(0.0, color="black", linestyle="--", linewidth=1.0)
     ax.set_xlim(-1,1)
     ax.set_xlabel(r"$(Age_{obs} - Age_{table}) / Age_{table}$")
