@@ -112,7 +112,7 @@ def plot_observed_vs_table_age_scatter(
 
     # Counts use the same logic as color interpretation:
     # blue = clearly below 1, green = close to 1, red = clearly above 1.
-    chi2_close_tolerance = 0.2
+    chi2_close_tolerance = 0.5
     finite_reduced = reduced[np.isfinite(reduced)]
     n_blue = int(np.sum(finite_reduced < 1.0 - chi2_close_tolerance))
     n_green = int(
