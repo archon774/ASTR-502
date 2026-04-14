@@ -1,4 +1,4 @@
-tic_ids,Teff,period,st_age,age_grid,age_posterior,median,+1sigma,-1sigma,mean,mode
+"tic_ids","Teff","period","st_age","age_grid","age_posterior","median","+1sigma","-1sigma","mean","mode"
 TIC396972464,[5672.],[15.393],[8.9],"[   0.            8.01603206   16.03206413   24.04809619   32.06412826
    40.08016032   48.09619238   56.11222445   64.12825651   72.14428858
    80.16032064   88.17635271   96.19238477  104.20841683  112.2244489
