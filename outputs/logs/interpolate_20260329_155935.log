@@ -1,0 +1,122 @@
+2026-03-29 15:59:35,612 DEBUG src.astr502.data.utils - Debug logging initialized at outputs/logs/interpolate_20260329_155935.log
+2026-03-29 15:59:35,612 INFO src.astr502.services.fit_runtime - Starting target-list interpolation run at 20260329_155935
+2026-03-29 19:02:02,702 ERROR src.astr502.services.fit_runtime - [OGLE-TR-113] fit failed
+concurrent.futures.process._RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/process.py", line 254, in _process_worker
+    r = call_item.fn(*call_item.args, **call_item.kwargs)
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/services/fit_runtime.py", line 136, in _fit_hostname_worker
+    fit, _ = fit_best_params(hostname=hostname, verbose=verbose, **fit_kwargs)
+             ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/modeling/interpolate.py", line 198, in fit_best_params
+    obs_abs, distance_pc = CatalogUtils.get_star_obs_abs(hostname, mega_df=mega_df, phot_df=phot_df)
+                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/data/catalogs.py", line 63, in get_star_obs_abs
+    raise ValueError(f"{hostname}: only {len(obs_abs)} usable bands; need >= 3 for a stable fit")
+ValueError: OGLE-TR-113: only 0 usable bands; need >= 3 for a stable fit
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/services/fit_runtime.py", line 188, in _fit_hostnames_parallel
+    fits_by_hostname[hostname] = future.result()
+                                 ~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 449, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+ValueError: OGLE-TR-113: only 0 usable bands; need >= 3 for a stable fit
+2026-03-29 19:44:19,634 ERROR src.astr502.services.fit_runtime - [ZTF J1230-2655] fit failed
+concurrent.futures.process._RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/process.py", line 254, in _process_worker
+    r = call_item.fn(*call_item.args, **call_item.kwargs)
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/services/fit_runtime.py", line 136, in _fit_hostname_worker
+    fit, _ = fit_best_params(hostname=hostname, verbose=verbose, **fit_kwargs)
+             ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/modeling/interpolate.py", line 198, in fit_best_params
+    obs_abs, distance_pc = CatalogUtils.get_star_obs_abs(hostname, mega_df=mega_df, phot_df=phot_df)
+                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/data/catalogs.py", line 63, in get_star_obs_abs
+    raise ValueError(f"{hostname}: only {len(obs_abs)} usable bands; need >= 3 for a stable fit")
+ValueError: ZTF J1230-2655: only 0 usable bands; need >= 3 for a stable fit
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/services/fit_runtime.py", line 188, in _fit_hostnames_parallel
+    fits_by_hostname[hostname] = future.result()
+                                 ~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 449, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+ValueError: ZTF J1230-2655: only 0 usable bands; need >= 3 for a stable fit
+2026-03-29 20:58:40,239 ERROR src.astr502.services.fit_runtime - [OGLE-TR-56] fit failed
+concurrent.futures.process._RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/process.py", line 254, in _process_worker
+    r = call_item.fn(*call_item.args, **call_item.kwargs)
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/services/fit_runtime.py", line 136, in _fit_hostname_worker
+    fit, _ = fit_best_params(hostname=hostname, verbose=verbose, **fit_kwargs)
+             ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/modeling/interpolate.py", line 198, in fit_best_params
+    obs_abs, distance_pc = CatalogUtils.get_star_obs_abs(hostname, mega_df=mega_df, phot_df=phot_df)
+                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/data/catalogs.py", line 63, in get_star_obs_abs
+    raise ValueError(f"{hostname}: only {len(obs_abs)} usable bands; need >= 3 for a stable fit")
+ValueError: OGLE-TR-56: only 0 usable bands; need >= 3 for a stable fit
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/services/fit_runtime.py", line 188, in _fit_hostnames_parallel
+    fits_by_hostname[hostname] = future.result()
+                                 ~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 449, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+ValueError: OGLE-TR-56: only 0 usable bands; need >= 3 for a stable fit
+2026-03-29 21:03:24,730 ERROR src.astr502.services.fit_runtime - [ZTF J1828+2308] fit failed
+concurrent.futures.process._RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/process.py", line 254, in _process_worker
+    r = call_item.fn(*call_item.args, **call_item.kwargs)
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/services/fit_runtime.py", line 136, in _fit_hostname_worker
+    fit, _ = fit_best_params(hostname=hostname, verbose=verbose, **fit_kwargs)
+             ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/modeling/interpolate.py", line 198, in fit_best_params
+    obs_abs, distance_pc = CatalogUtils.get_star_obs_abs(hostname, mega_df=mega_df, phot_df=phot_df)
+                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/data/catalogs.py", line 63, in get_star_obs_abs
+    raise ValueError(f"{hostname}: only {len(obs_abs)} usable bands; need >= 3 for a stable fit")
+ValueError: ZTF J1828+2308: only 0 usable bands; need >= 3 for a stable fit
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/archon/classes/ASTR_502/workstation/src/astr502/services/fit_runtime.py", line 188, in _fit_hostnames_parallel
+    fits_by_hostname[hostname] = future.result()
+                                 ~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 449, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+ValueError: ZTF J1828+2308: only 0 usable bands; need >= 3 for a stable fit
+2026-03-30 07:16:26,529 INFO src.astr502.modeling.interpolate - Saved fit results to outputs/results/interpolate_20260329_155935_candidate_fits.csv
+2026-03-30 07:16:26,529 INFO src.astr502.services.fit_runtime - Completed target-list interpolation run at 20260329_155935 in 55010.672 seconds with 3357 successes and 4 failures. output_csv=outputs/results/interpolate_20260329_155935_candidate_fits.csv log_file=outputs/logs/interpolate_20260329_155935.log
+2026-03-30 07:16:26,529 INFO src.astr502.services.fit_runtime - Completed fits: 3357 success, 4 failed
+2026-03-30 07:16:26,529 INFO src.astr502.services.fit_runtime - Saved successful fits to: outputs/results/interpolate_20260329_155935_candidate_fits.csv

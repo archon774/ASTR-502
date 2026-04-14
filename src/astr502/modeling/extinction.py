@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import numpy as np
+import warnings
 
 try:
     from synphot.reddening import ReddeningLaw
     import astropy.units as u
+    from astropy.units import UnitsWarning
 except ImportError:  # optional dependency
     ReddeningLaw = None
     u = None
+    UnitsWarning = Warning
 
 BAND_EFFECTIVE_WAVELENGTH_ANGSTROM = {
     "G": 6730.0,
@@ -17,13 +20,6 @@ BAND_EFFECTIVE_WAVELENGTH_ANGSTROM = {
     "H": 16620.0,
     "K": 21590.0,
     "W1": 33526.0,
-    "W2": 46028.0,
-    "W3": 115608.0,
-    "W4": 220883.0,
-    "g": 4770.0,
-    "r": 6231.0,
-    "i": 7625.0,
-    "z": 9134.0,
 }
 
 

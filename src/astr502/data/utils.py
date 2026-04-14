@@ -10,7 +10,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-REQUESTED_BANDS = ("G", "BP", "RP", "J", "H", "K", "W1", "W2", "W3", "W4", "g", "r", "i", "z")
+REQUESTED_BANDS = ("G", "BP", "RP", "J", "H", "K", "W1")
 
 BAND_COLUMN_CANDIDATES = {
     "G": ("G_mag", "Gaia_G_EDR3", "G"),
@@ -20,23 +20,31 @@ BAND_COLUMN_CANDIDATES = {
     "H": ("H_mag", "2MASS_H", "H"),
     "K": ("K_mag", "2MASS_Ks", "K"),
     "W1": ("W1_mag", "WISE_W1", "W1"),
-    "W2": ("W2_mag", "WISE_W2", "W2"),
-    "W3": ("W3_mag", "WISE_W3", "W3"),
-    "W4": ("W4_mag", "WISE_W4", "W4"),
-    "g": ("g_mag", "SDSS_g", "g"),
-    "r": ("r_mag", "SDSS_r", "r"),
-    "i": ("i_mag", "SDSS_i", "i"),
-    "z": ("z_mag", "SDSS_z", "z"),
 }
 
 
 class LoggingUtils:
     @staticmethod
-    def configure_debug_logging(log_dir: str | Path = "outputs/logs") -> Path:
+    def run_timestamp() -> str:
+        return time.strftime("%Y%m%d_%H%M%S")
+
+    @staticmethod
+    def timestamped_output_path(
+        *,
+        output_dir: str | Path,
+        suffix: str,
+        prefix: str = "interpolate",
+        run_stamp: str | None = None,
+    ) -> Path:
+        stamp = run_stamp if run_stamp is not None else LoggingUtils.run_timestamp()
+        return Path(output_dir) / f"{prefix}_{stamp}_{suffix}"
+
+    @staticmethod
+    def configure_debug_logging(log_dir: str | Path = "/Users/archon/classes/ASTR_502/workstation/outputs/logs", run_stamp: str | None = None) -> Path:
         logs_path = Path(log_dir)
         logs_path.mkdir(parents=True, exist_ok=True)
-        run_stamp = time.strftime("%Y%m%d_%H%M%S")
-        log_file = logs_path / f"interpolate_{run_stamp}.log"
+        stamp = run_stamp if run_stamp is not None else LoggingUtils.run_timestamp()
+        log_file = logs_path / f"interpolate_{stamp}.log"
 
         logging.basicConfig(
             level=logging.DEBUG,

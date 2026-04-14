@@ -1,23 +1,71 @@
 from __future__ import annotations
 
 from pathlib import Path
+import logging
 
 import numpy as np
 import pandas as pd
+import emcee
 from scipy.interpolate import RegularGridInterpolator
 from scipy.optimize import minimize
 
 from src.astr502.data.catalogs import CatalogStore, CatalogUtils, DEFAULT_MEGA_CSV, DEFAULT_PHOT_CSV
 from src.astr502.data.readers.read_spot_models import SPOT
-from src.astr502.data.utils import IsochroneUtils, REQUESTED_BANDS
+from src.astr502.data.utils import IsochroneUtils, LoggingUtils, REQUESTED_BANDS
 from src.astr502.domain.schemas import FitResultSchema
-from src.astr502.domain.stats import summarize_chi_square
+from src.astr502.domain.stats import reduced_chi2, summarize_chi_square
 from src.astr502.modeling.extinction import get_band_extinction
 
 _CATALOG_STORE = CatalogStore()
 _INTERPOLATORS: dict[str, RegularGridInterpolator] | None = None
 _GRIDS: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
 _ACTIVE_BANDS: list[str] | None = None
+logger = logging.getLogger(__name__)
+
+
+def _make_log_probability(
+    obs_abs: dict[str, float],
+    obs_abs_err: dict[str, float],
+    prior: dict[str, float],
+    bounds: list[tuple[float, float]],
+):
+    (mass_min, mass_max), (logage_min, logage_max), (feh_min, feh_max), (av_min, av_max) = bounds
+
+    def log_prob(theta: np.ndarray) -> float:
+        mass, log10_age, feh, av = theta
+        in_bounds = (
+            (mass_min <= mass <= mass_max)
+            and (logage_min <= log10_age <= logage_max)
+            and (feh_min <= feh <= feh_max)
+            and (av_min <= av <= av_max)
+        )
+        if not in_bounds:
+            return -np.inf
+
+        model = get_model_mag(mass=mass, age=10.0 ** log10_age, feh=feh, av=av)
+        chi2 = summarize_chi_square(
+            model_mags=model,
+            observed_abs_mags=obs_abs,
+            observed_abs_mag_errors=obs_abs_err,
+            mass=mass,
+            log10_age=log10_age,
+            feh=feh,
+            prior=prior,
+        ).chi2_total
+        return -0.5 * chi2 if np.isfinite(chi2) else -np.inf
+
+    return log_prob
+
+
+def _compute_param_errors(samples: np.ndarray) -> dict[str, dict[str, float]]:
+    percentiles = np.percentile(samples, [16, 50, 84], axis=0)
+    p16, p50, p84 = percentiles
+    return {
+        "mass": {"median": float(p50[0]), "err_minus": float(p50[0] - p16[0]), "err_plus": float(p84[0] - p50[0])},
+        "log10_age": {"median": float(p50[1]), "err_minus": float(p50[1] - p16[1]), "err_plus": float(p84[1] - p50[1])},
+        "feh": {"median": float(p50[2]), "err_minus": float(p50[2] - p16[2]), "err_plus": float(p84[2] - p50[2])},
+        "av": {"median": float(p50[3]), "err_minus": float(p50[3] - p16[3]), "err_plus": float(p84[3] - p50[3])},
+    }
 
 
 def load_catalogs(
@@ -135,24 +183,26 @@ def get_model_mag(mass: float, age: float, feh: float, av: float = 0.0) -> dict[
 
 def fit_best_params(
     hostname: str,
-    sigma_phot: float = 0.5,
-    fallback_sigma_param: float = 0.25,
     av_bounds: tuple[float, float] = (0.0, 3.0),
     bounds: list[tuple[float, float]] | None = None,
+    run_emcee: bool = False,
+    nwalkers: int = 32,
+    nsteps: int = 1200,
+    burn_in: int = 300,
+    random_seed: int = 42,
     verbose: bool = True,
 ) -> tuple[FitResultSchema, object]:
     mega_df, phot_df = _CATALOG_STORE.ensure_loaded()
-    obs_abs, distance_pc = CatalogUtils.get_star_obs_abs(hostname, mega_df=mega_df, phot_df=phot_df)
+    obs_abs, obs_abs_err, distance_pc = CatalogUtils.get_star_obs_abs(hostname, mega_df=mega_df, phot_df=phot_df)
     prior = CatalogUtils.get_param_prior(
         hostname,
         mega_df=mega_df,
         phot_df=phot_df,
-        fallback_sigma=fallback_sigma_param,
     )
 
-    m0 = prior["m0"] if np.isfinite(prior["m0"]) else 1.0
-    a0 = prior["a0_gyr"] if np.isfinite(prior["a0_gyr"]) else 5.0
-    feh0 = prior["feh0"] if np.isfinite(prior["feh0"]) else 0.0
+    m0 = prior["m0"]
+    a0 = prior["a0_gyr"]
+    feh0 = prior["feh0"]
     x0 = np.array([m0, np.log10(a0 * 1e9), feh0, 0.0], dtype=float)
 
     if bounds is None:
@@ -167,7 +217,7 @@ def fit_best_params(
         return summarize_chi_square(
             model_mags=model,
             observed_abs_mags=obs_abs,
-            sigma_phot=sigma_phot,
+            observed_abs_mag_errors=obs_abs_err,
             mass=mass,
             log10_age=log10_age,
             feh=feh,
@@ -177,16 +227,34 @@ def fit_best_params(
     result = minimize(objective, x0=x0, bounds=bounds, method="L-BFGS-B")
     mass_b, log10_age_b, feh_b, av_b = result.x
     age_yr_b = 10.0 ** log10_age_b
+    age_gyr_b = age_yr_b / 1e9 #remove in future
     model_best = get_model_mag(mass=mass_b, age=age_yr_b, feh=feh_b, av=av_b)
     chi2 = summarize_chi_square(
         model_mags=model_best,
         observed_abs_mags=obs_abs,
-        sigma_phot=sigma_phot,
+        observed_abs_mag_errors=obs_abs_err,
         mass=mass_b,
         log10_age=log10_age_b,
         feh=feh_b,
         prior=prior,
     )
+    mcmc_summary = None
+
+    if run_emcee:
+        rng = np.random.default_rng(random_seed)
+        ndim = 4
+        log_prob = _make_log_probability(obs_abs=obs_abs, obs_abs_err=obs_abs_err, prior=prior, bounds=bounds)
+
+        p0 = result.x + 1e-3 * rng.normal(size=(nwalkers, ndim))
+        for i, (low, high) in enumerate(bounds):
+            p0[:, i] = np.clip(p0[:, i], low + 1e-8, high - 1e-8)
+
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob)
+        sampler.run_mcmc(p0, nsteps, progress=False)
+
+        flat_samples = sampler.get_chain(discard=burn_in, flat=True)
+        if flat_samples.shape[0] > 0:
+            mcmc_summary = _compute_param_errors(flat_samples)
 
     fit = FitResultSchema(
         hostname=hostname,
@@ -197,19 +265,51 @@ def fit_best_params(
         chi2_phot=float(chi2.chi2_phot),
         chi2_prior=float(chi2.chi2_prior),
         chi2_total=float(chi2.chi2_total),
+        chi2_reduced=reduced_chi2(chi2_total=chi2.chi2_total, n_obs_bands=len(obs_abs)),
+        n_obs_bands=len(obs_abs),
         distance_pc=float(distance_pc),
         model_magnitudes=model_best,
+        mcmc_summary=mcmc_summary,
     )
 
     if verbose:
-        print(f"[{hostname}] Best-fit parameters (chi2_phot + chi2_prior)")
-        print(f"  mass = {fit.mass:.4f} Msun")
-        print(f"  age  = {fit.age_yr:.3e} yr")
-        print(f"  feh  = {fit.feh:.4f} dex")
-        print(f"  Av   = {fit.av:.4f} mag")
-        print(f"  chi2_total = {fit.chi2_total:.3f}")
-        print(f"  d_pc used = {fit.distance_pc:.3f}")
-        print(f"  success = {result.success} | {result.message}")
+        logger.info("[%s] Best-fit parameters (chi2_phot + chi2_prior)", hostname)
+        logger.info("  mass = %.4f Msun", fit.mass)
+        logger.info("  age  = %.3e yr", fit.age_yr)
+        logger.info("         (%.4f Gyr)", age_gyr_b)
+        logger.info("  feh  = %.4f dex", fit.feh)
+        logger.info("  Av   = %.4f mag", fit.av)
+        logger.info("  chi2_total = %.3f", fit.chi2_total)
+        logger.info("  chi2_phot = %.3f", fit.chi2_phot)
+        logger.info("  chi2_prior = %.3f", fit.chi2_prior)
+        logger.info("  chi2_reduced = %.3f", fit.chi2_reduced)
+        logger.info("  N_obs_bands = %.3f", fit.n_obs_bands)
+        logger.info("  d_pc used = %.3f", fit.distance_pc)
+        logger.info("  success = %s | %s", result.success, result.message)
+        if mcmc_summary is not None:
+            age_med_yr = 10.0 ** mcmc_summary["log10_age"]["median"]
+            age_err_minus_yr = age_med_yr - 10.0 ** (
+                mcmc_summary["log10_age"]["median"] - mcmc_summary["log10_age"]["err_minus"]
+            )
+            age_err_plus_yr = 10.0 ** (
+                mcmc_summary["log10_age"]["median"] + mcmc_summary["log10_age"]["err_plus"]
+            ) - age_med_yr
+            logger.info("  emcee 1σ parameter uncertainties (16th/50th/84th percentiles):")
+            logger.info(
+                "    mass = %.4f -%.4f/+%.4f Msun",
+                fit.mass,
+                mcmc_summary["mass"]["err_minus"],
+                mcmc_summary["mass"]["err_plus"],
+            )
+            logger.info("    age  = %.3e -%.3e/+%.3e yr", fit.age_yr, age_err_minus_yr, age_err_plus_yr)
+            logger.info(
+                "    feh  = %.4f -%.4f/+%.4f dex",
+                fit.feh,
+                mcmc_summary["feh"]["err_minus"],
+                mcmc_summary["feh"]["err_plus"],
+            )
+
+    result.mcmc_summary = mcmc_summary
 
     return fit, result
 
@@ -219,10 +319,23 @@ def get_bestfit_model_mag_for_star(hostname: str, **fit_kwargs) -> tuple[FitResu
     return fit, dict(fit.model_magnitudes)
 
 
-def save_fit_results_to_csv(results: list[FitResultSchema], output_csv: str = "outputs/results/interpolate_best_fit_results.csv") -> str:
-    final_path = Path(output_csv)
+def save_fit_results_to_csv(
+    results: list[FitResultSchema],
+    output_csv: str | None = None,
+    run_stamp: str | None = None,
+) -> str:
+    final_path = (
+        Path(output_csv)
+        if output_csv is not None
+        else LoggingUtils.timestamped_output_path(
+            output_dir="/Users/archon/classes/ASTR_502/workstation/outputs/results",
+            suffix="candidate_fits.csv",
+            run_stamp=run_stamp,
+        )
+    )
     final_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame([r.to_record() for r in results]).to_csv(final_path, index=False)
+    logger.info("Saved fit results to %s", final_path)
     return str(final_path)
 
 

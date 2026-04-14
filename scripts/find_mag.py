@@ -61,7 +61,8 @@ class PhotometryMerger:
                                       phot_csv: Path | str,
                                       dist_csv: Path | str,
                                       on: Optional[str] = None,
-                                      how: str = 'inner') -> pd.DataFrame:
+                                      how: str = 'inner',
+                                      csv: Optional[Path | str] = None) -> pd.DataFrame:
         phot_df = pd.read_csv(phot_csv)
         dist_df = pd.read_csv(dist_csv)
 
@@ -104,6 +105,12 @@ class PhotometryMerger:
         hostname_col = self._find_col(joined, ['hostname'])
         if hostname_col is not None and hostname_col != 'hostname':
             joined['hostname'] = joined[hostname_col]
+
+        if csv is None:
+            processed = Path("/Users/archon/classes/ASTR_502/workstation/data/processed")
+            csv_path = processed / "joined_photometry_and_distances.csv"
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            joined.to_csv(csv_path, index=False)
         return joined
 
     @staticmethod
