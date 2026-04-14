@@ -199,6 +199,11 @@ def fit_best_params(
         mega_df=mega_df,
         phot_df=phot_df,
     )
+    tic_id = CatalogUtils.get_tic_id(
+        hostname,
+        mega_df=mega_df,
+        phot_df=phot_df,
+    )
 
     m0 = prior["m0"]
     a0 = prior["a0_gyr"]
@@ -258,6 +263,7 @@ def fit_best_params(
 
     fit = FitResultSchema(
         hostname=hostname,
+        tic_id=tic_id,
         mass=float(mass_b),
         age_yr=float(age_yr_b),
         feh=float(feh_b),
