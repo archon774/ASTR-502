@@ -1,5 +1,6 @@
 import pandas as pd
 import re
+from src.astr502.data.paths import SPOTS_ISOS_DIR
 
 class SPOT:
     """
@@ -81,6 +82,6 @@ class SPOT:
         return sections
 
 if __name__ == "__main__":
-    dfs = SPOT("/Users/archon/classes/ASTR_502/workstation/data/raw/isochrones/SPOTS/isos/f000.isoc").read_iso_file()
+    dfs = SPOT(str(SPOTS_ISOS_DIR / "f000.isoc")).read_iso_file()
     for df in dfs:
         print(df)

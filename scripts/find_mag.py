@@ -124,8 +124,8 @@ class PhotometryMerger:
         return [c for c in candidates if c in df.columns]
 
 # merge = PhotometryMerger()
-# phot_csv_file = '/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Master_Photometry_List.csv'
-# dist_csv_file = '/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Mega_Target_List.csv'
+# phot_csv_file = 'data/raw/catalogs/ASTR502_Master_Photometry_List.csv'
+# dist_csv_file = 'data/raw/catalogs/ASTR502_Mega_Target_List.csv'
 # df = merge.join_photometry_and_distances(phot_csv_file, dist_csv_file)
 # print(df)
 # def plot(pd: pd.DataFrame):
