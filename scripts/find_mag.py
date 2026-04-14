@@ -107,10 +107,15 @@ class PhotometryMerger:
             joined['hostname'] = joined[hostname_col]
 
         if csv is None:
-            processed = Path("/Users/archon/classes/ASTR_502/workstation/data/processed")
-            csv_path = processed / "joined_photometry_and_distances.csv"
-            csv_path.parent.mkdir(parents=True, exist_ok=True)
-            joined.to_csv(csv_path, index=False)
+            repo_root = Path(__file__).resolve().parents[1]
+            csv_path = repo_root / 'data' / 'processed' / 'joined_photometry_and_distances.csv'
+        else:
+            csv_path = Path(csv)
+            if not csv_path.is_absolute():
+                csv_path = Path.cwd() / csv_path
+
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        joined.to_csv(csv_path, index=False)
         return joined
 
     @staticmethod
