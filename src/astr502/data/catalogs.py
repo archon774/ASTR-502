@@ -97,6 +97,26 @@ class CatalogUtils:
             "sig_age_lo": sig_age_lo,
         }
 
+    @staticmethod
+    def get_tic_id(hostname: str, mega_df: pd.DataFrame, phot_df: pd.DataFrame) -> str | None:
+        mrow, _ = CatalogUtils.get_star_rows(hostname, mega_df=mega_df, phot_df=phot_df)
+        if "tic_id" not in mrow.index:
+            return None
+
+        tic_id = mrow["tic_id"]
+        if pd.isna(tic_id):
+            return None
+
+        if isinstance(tic_id, (int, np.integer)):
+            return str(tic_id)
+        if isinstance(tic_id, float):
+            if np.isfinite(tic_id) and tic_id.is_integer():
+                return str(int(tic_id))
+            return str(tic_id)
+
+        tic_id_text = str(tic_id).strip()
+        return tic_id_text if tic_id_text else None
+
 
 class CatalogStore:
     def __init__(self) -> None:

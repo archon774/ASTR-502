@@ -9,6 +9,7 @@ class FitResultSchema:
     """Serializable schema for one star's best-fit interpolation result."""
 
     hostname: str
+    tic_id: str | None
     mass: float
     age_yr: float
     feh: float
@@ -25,6 +26,7 @@ class FitResultSchema:
     def to_record(self) -> dict[str, float | str]:
         record: dict[str, float | str] = {
             "hostname": self.hostname,
+            "tic_id": self.tic_id if self.tic_id is not None else "",
             "mass": self.mass,
             "age_yr": self.age_yr,
             "feh": self.feh,
