@@ -24,3 +24,6 @@ OUTPUT_FIGS_DIR = OUTPUTS_DIR / "figs"
 
 DEFAULT_MEGA_CSV_PATH = CATALOGS_DIR / "ASTR502_Mega_Target_List.csv"
 DEFAULT_PHOT_CSV_PATH = CATALOGS_DIR / "ASTR502_Master_Photometry_List.csv"
+
+K2_AGES = CATALOGS_DIR / "k2_star_ages.csv"
+KEPLER_AGES = CATALOGS_DIR / "kepler_star_ages.csv"
