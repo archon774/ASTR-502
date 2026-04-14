@@ -7,6 +7,7 @@ import re
 import time
 
 import pandas as pd
+from src.astr502.data.paths import OUTPUT_LOGS_DIR, SPOTS_ISOS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class LoggingUtils:
         return Path(output_dir) / f"{prefix}_{stamp}_{suffix}"
 
     @staticmethod
-    def configure_debug_logging(log_dir: str | Path = "/Users/archon/classes/ASTR_502/workstation/outputs/logs", run_stamp: str | None = None) -> Path:
+    def configure_debug_logging(log_dir: str | Path = OUTPUT_LOGS_DIR, run_stamp: str | None = None) -> Path:
         logs_path = Path(log_dir)
         logs_path.mkdir(parents=True, exist_ok=True)
         stamp = run_stamp if run_stamp is not None else LoggingUtils.run_timestamp()
@@ -61,7 +62,7 @@ class LoggingUtils:
 
 class IsochroneUtils:
     @staticmethod
-    def discover_spot_files(pattern: str = "/Users/archon/classes/ASTR_502/workstation/data/raw/isochrones/SPOTS/isos/*.isoc") -> list[str]:
+    def discover_spot_files(pattern: str | Path = SPOTS_ISOS_DIR / "*.isoc") -> list[str]:
         return sorted(glob.glob(pattern))
 
     @staticmethod

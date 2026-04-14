@@ -5,9 +5,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from src.astr502.data.paths import DEFAULT_MEGA_CSV_PATH, DEFAULT_PHOT_CSV_PATH
 
-DEFAULT_MEGA_CSV = "/Users/archon/classes/ASTR_502/workstation/data/raw/catalogs/ASTR502_Mega_Target_List.csv"
-DEFAULT_PHOT_CSV = "/Users/archon/classes/ASTR_502/workstation/data/raw/catalogs/ASTR502_Master_Photometry_List.csv"
+DEFAULT_MEGA_CSV = DEFAULT_MEGA_CSV_PATH
+DEFAULT_PHOT_CSV = DEFAULT_PHOT_CSV_PATH
 
 OBS_MAP = {
     "G": "gaiaGmag",

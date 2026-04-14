@@ -9,6 +9,7 @@ import numpy as np
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from matplotlib.lines import Line2D
 
+from src.astr502.data.paths import DEFAULT_MEGA_CSV_PATH, OUTPUT_FIGS_DIR, OUTPUT_RESULTS_DIR
 from src.astr502.data.utils import LoggingUtils
 
 logger = logging.getLogger(__name__)
@@ -112,8 +113,8 @@ def _save_age_scatter(
 
 
 def plot_observed_vs_table_age_scatter(
-    catalog_csv: str | Path = "../../../data/raw/catalogs/ASTR502_Mega_Target_List.csv",
-    observed_csv: str | Path = "../../../outputs/results/interpolate_20260409_125607_candidate_fits.csv",
+    catalog_csv: str | Path = DEFAULT_MEGA_CSV_PATH,
+    observed_csv: str | Path = OUTPUT_RESULTS_DIR / "interpolate_best_fit_results.csv",
     output_path: str | Path | None = None,
 ) -> Path:
     """Plot fractional age residuals vs. table age for targets with both age values.
@@ -131,7 +132,7 @@ def plot_observed_vs_table_age_scatter(
         Path(output_path)
         if output_path is not None
         else LoggingUtils.timestamped_output_path(
-            output_dir="../../../outputs/figs",
+            output_dir=OUTPUT_FIGS_DIR,
             suffix="age_obs_vs_table_scatter.png",
         )
     )
