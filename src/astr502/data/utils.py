@@ -63,7 +63,7 @@ class LoggingUtils:
 class IsochroneUtils:
     @staticmethod
     def discover_spot_files(pattern: str | Path = SPOTS_ISOS_DIR / "*.isoc") -> list[str]:
-        return sorted(glob.glob(pattern))
+        return sorted(glob.glob(str(pattern)))
 
     @staticmethod
     def extract_metallicity_from_path(file_path: str | Path) -> float:
