@@ -96,7 +96,7 @@ This file mainly provides reusable classes:
 - `IsochroneFetcher`
 - `IsochronePlotter`
 
-for querying and visualizing ezpadova isochrones from Python.
+for querying and visualizing ezpadova isochrones from Python if using Parsec models. Note that currently only SPOTs is fully supported.
 
 ### 4) Photometry + distance merge utility class
 
@@ -119,10 +119,13 @@ python src/astr502/services/gyro.py
 ```
 
 - `plots.py` generates observed-vs-table age scatter plots in `outputs/figs/`.
-- `gyro.py` compares recent fit ages against Kepler ages.
+- `gyro.py` compares recent fit ages against Kepler & K2 gyrochronology ages.
 
 ## Maintainers
 
-Instructor: Dr. Andrew Mann  
 Repository owner: James Atkisson  
 Email: atk@unc.edu
+
+This was written for the ASTR 502 course at the University of North Carolina at Chapel Hill
+
+Instructor: Dr. Andrew Mann  
