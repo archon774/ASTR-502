@@ -36,7 +36,7 @@ def _load_kepler_ages(kepler_catalog_csv: Path = KEPLER_AGES) -> dict[str, float
     with kepler_catalog_csv.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
-            tic_id = (row.get("tic_ids") or "").strip()
+            tic_id = re.sub(r"^TIC\s*", "", (row.get("tic_ids") or "").strip(), flags=re.IGNORECASE)
             age_gyr = _extract_first_float(row.get("st_age"))
             if not tic_id or age_gyr is None or not math.isfinite(age_gyr):
                 continue
