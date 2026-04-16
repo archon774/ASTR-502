@@ -83,7 +83,7 @@ def compare_gyro_ages(results_csv: Path | None = None) -> None:
 
     abs_errors = [abs(delta) for *_, delta in matched_rows]
     mean_abs_err = sum(abs_errors) / len(abs_errors)
-    rmse = math.sqrt(sum(delta * delta for *_, delta in matched_rows) / len(matched_rows))
+    rmse = math.sqrt(sum(delta **2 for *_, delta in matched_rows) / len(matched_rows))
     med_abs_err = median(abs_errors)
 
     print("\nAlignment summary (fit age - Kepler st_age, in Gyr):")
