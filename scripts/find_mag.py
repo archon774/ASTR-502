@@ -107,10 +107,15 @@ class PhotometryMerger:
             joined['hostname'] = joined[hostname_col]
 
         if csv is None:
-            processed = Path("/Users/archon/classes/ASTR_502/workstation/data/processed")
-            csv_path = processed / "joined_photometry_and_distances.csv"
-            csv_path.parent.mkdir(parents=True, exist_ok=True)
-            joined.to_csv(csv_path, index=False)
+            repo_root = Path(__file__).resolve().parents[1]
+            csv_path = repo_root / 'data' / 'processed' / 'joined_photometry_and_distances.csv'
+        else:
+            csv_path = Path(csv)
+            if not csv_path.is_absolute():
+                csv_path = Path.cwd() / csv_path
+
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        joined.to_csv(csv_path, index=False)
         return joined
 
     @staticmethod
@@ -119,8 +124,8 @@ class PhotometryMerger:
         return [c for c in candidates if c in df.columns]
 
 # merge = PhotometryMerger()
-# phot_csv_file = '/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Master_Photometry_List.csv'
-# dist_csv_file = '/Users/archon/classes/ASTR_502/Astro502_Sp26/ASTR502_Mega_Target_List.csv'
+# phot_csv_file = 'data/raw/catalogs/ASTR502_Master_Photometry_List.csv'
+# dist_csv_file = 'data/raw/catalogs/ASTR502_Mega_Target_List.csv'
 # df = merge.join_photometry_and_distances(phot_csv_file, dist_csv_file)
 # print(df)
 # def plot(pd: pd.DataFrame):

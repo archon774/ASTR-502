@@ -10,6 +10,7 @@ from scipy.interpolate import RegularGridInterpolator
 from scipy.optimize import minimize
 
 from src.astr502.data.catalogs import CatalogStore, CatalogUtils, DEFAULT_MEGA_CSV, DEFAULT_PHOT_CSV
+from src.astr502.data.paths import OUTPUT_RESULTS_DIR, SPOTS_ISOS_DIR
 from src.astr502.data.readers.read_spot_models import SPOT
 from src.astr502.data.utils import IsochroneUtils, LoggingUtils, REQUESTED_BANDS
 from src.astr502.domain.schemas import FitResultSchema
@@ -84,7 +85,7 @@ def _build_interpolators(
     if spot_iso_files is None:
         spot_iso_files = IsochroneUtils.discover_spot_files()
     if not spot_iso_files:
-        raise FileNotFoundError("No SPOT isochrone files found at data/raw/isochrones/SPOTS/isos/*.isoc")
+        raise FileNotFoundError(f"No SPOT isochrone files found at {SPOTS_ISOS_DIR / '*.isoc'}")
 
     all_sections: list[tuple[float, float, pd.DataFrame]] = []
     age_values: set[float] = set()
@@ -199,6 +200,11 @@ def fit_best_params(
         mega_df=mega_df,
         phot_df=phot_df,
     )
+    tic_id = CatalogUtils.get_tic_id(
+        hostname,
+        mega_df=mega_df,
+        phot_df=phot_df,
+    )
 
     m0 = prior["m0"]
     a0 = prior["a0_gyr"]
@@ -258,6 +264,7 @@ def fit_best_params(
 
     fit = FitResultSchema(
         hostname=hostname,
+        tic_id=tic_id,
         mass=float(mass_b),
         age_yr=float(age_yr_b),
         feh=float(feh_b),
@@ -328,7 +335,7 @@ def save_fit_results_to_csv(
         Path(output_csv)
         if output_csv is not None
         else LoggingUtils.timestamped_output_path(
-            output_dir="/Users/archon/classes/ASTR_502/workstation/outputs/results",
+            output_dir=OUTPUT_RESULTS_DIR,
             suffix="candidate_fits.csv",
             run_stamp=run_stamp,
         )
