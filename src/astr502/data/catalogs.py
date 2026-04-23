@@ -71,8 +71,14 @@ class CatalogUtils:
             if band_err <= 0:
                 continue
 
-            obs_abs[band] = CatalogUtils.apparent_to_absolute(float(prow[col]), distance_pc)
-            obs_abs_err[band] = band_err
+            abs_mag = CatalogUtils.apparent_to_absolute(float(prow[col]), distance_pc)
+            obs_abs[band] = abs_mag
+            obs_abs_err[band] = CatalogUtils._combine_photometric_and_distance_error(
+                phot_sigma=band_err,
+                distance_pc=distance_pc,
+                distance_lo=CatalogUtils._coerce_float(mrow.get("bj_dist_pc_lo", np.nan)),
+                distance_hi=CatalogUtils._coerce_float(mrow.get("bj_dist_pc_hi", np.nan)),
+            )
 
         if len(obs_abs) < 3:
             raise ValueError(f"{hostname}: only {len(obs_abs)} usable bands; need >= 3 for a stable fit")
@@ -96,7 +102,45 @@ class CatalogUtils:
             "feh0": feh0,
             "sig_age_hi": sig_age_hi,
             "sig_age_lo": sig_age_lo,
+            "sig_mass": 0.10,
+            "sig_feh": 0.10,
         }
+
+    @staticmethod
+    def _coerce_float(value: object) -> float:
+        try:
+            value_f = float(value)
+        except (TypeError, ValueError):
+            return float("nan")
+        return value_f if np.isfinite(value_f) else float("nan")
+
+    @staticmethod
+    def _distance_modulus_sigma(distance_pc: float, distance_lo: float, distance_hi: float) -> float:
+        if not np.isfinite(distance_pc) or distance_pc <= 0:
+            return float("nan")
+        estimates: list[float] = []
+        if np.isfinite(distance_lo):
+            estimates.append(abs(distance_pc - distance_lo))
+        if np.isfinite(distance_hi):
+            estimates.append(abs(distance_hi - distance_pc))
+        if not estimates:
+            return float("nan")
+        sigma_d = max(estimates)
+        if sigma_d <= 0:
+            return float("nan")
+        return float((5.0 / np.log(10.0)) * (sigma_d / distance_pc))
+
+    @staticmethod
+    def _combine_photometric_and_distance_error(
+        phot_sigma: float,
+        distance_pc: float,
+        distance_lo: float,
+        distance_hi: float,
+    ) -> float:
+        sigma_mu = CatalogUtils._distance_modulus_sigma(distance_pc, distance_lo, distance_hi)
+        if np.isfinite(sigma_mu) and sigma_mu > 0:
+            return float(np.hypot(phot_sigma, sigma_mu))
+        return float(phot_sigma)
 
     @staticmethod
     def get_tic_id(hostname: str, mega_df: pd.DataFrame, phot_df: pd.DataFrame) -> str | None:

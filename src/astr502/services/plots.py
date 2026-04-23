@@ -163,6 +163,8 @@ def plot_observed_vs_table_age_scatter(
             hostname = (row.get("hostname") or "").strip()
             age_obs_raw = (row.get("age_yr") or "").strip()
             chi2_raw = (row.get("chi2_reduced") or "").strip()
+            if not chi2_raw:
+                chi2_raw = (row.get("chi2") or row.get("chi2_total") or "").strip()
 
             if not hostname or not age_obs_raw or hostname not in table_age_by_host:
                 continue

@@ -24,6 +24,25 @@ _ACTIVE_BANDS: list[str] | None = None
 logger = logging.getLogger(__name__)
 
 
+def _safe_initial_guess(prior: dict[str, float], bounds: list[tuple[float, float]]) -> np.ndarray:
+    default_guess = np.array([1.0, np.log10(5.0e9), 0.0, 0.0], dtype=float)
+    m0 = prior.get("m0", np.nan)
+    a0 = prior.get("a0_gyr", np.nan)
+    feh0 = prior.get("feh0", np.nan)
+    guess = np.array(
+        [
+            m0 if np.isfinite(m0) else default_guess[0],
+            np.log10(a0 * 1e9) if np.isfinite(a0) and a0 > 0 else default_guess[1],
+            feh0 if np.isfinite(feh0) else default_guess[2],
+            default_guess[3],
+        ],
+        dtype=float,
+    )
+    for idx, (low, high) in enumerate(bounds):
+        guess[idx] = np.clip(guess[idx], low + 1e-8, high - 1e-8)
+    return guess
+
+
 def _make_log_probability(
     obs_abs: dict[str, float],
     obs_abs_err: dict[str, float],
@@ -206,13 +225,9 @@ def fit_best_params(
         phot_df=phot_df,
     )
 
-    m0 = prior["m0"]
-    a0 = prior["a0_gyr"]
-    feh0 = prior["feh0"]
-    x0 = np.array([m0, np.log10(a0 * 1e9), feh0, 0.0], dtype=float)
-
     if bounds is None:
         bounds = [(0.1, 3.0), (6.0, np.log10(13.8e9)), (-1.0, 0.5), av_bounds]
+    x0 = _safe_initial_guess(prior=prior, bounds=bounds)
 
     def objective(x: np.ndarray) -> float:
         mass, log10_age, feh, av = x
@@ -220,7 +235,7 @@ def fit_best_params(
             return 1e30
 
         model = get_model_mag(mass=mass, age=10.0 ** log10_age, feh=feh, av=av)
-        return summarize_chi_square(
+        chi2_total = summarize_chi_square(
             model_mags=model,
             observed_abs_mags=obs_abs,
             observed_abs_mag_errors=obs_abs_err,
@@ -229,6 +244,7 @@ def fit_best_params(
             feh=feh,
             prior=prior,
         ).chi2_total
+        return float(chi2_total) if np.isfinite(chi2_total) else 1e30
 
     result = minimize(objective, x0=x0, bounds=bounds, method="L-BFGS-B")
     mass_b, log10_age_b, feh_b, av_b = result.x

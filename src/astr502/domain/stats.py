@@ -60,17 +60,21 @@ def chi2_prior(
 ) -> float:
     """Gaussian priors for mass/feh and asymmetric age prior (in Gyr)."""
     chi2 = 0.0
+    mass_sigma = prior.get("sig_mass", 0.10)
+    feh_sigma = prior.get("sig_feh", 0.10)
 
-    if np.isfinite(prior["m0"]):
-        chi2 += (mass - prior["m0"]) ** 2
+    if np.isfinite(prior["m0"]) and np.isfinite(mass_sigma) and mass_sigma > 0:
+        chi2 += ((mass - prior["m0"]) / mass_sigma) ** 2
 
-    if np.isfinite(prior["feh0"]):
-        chi2 += (feh - prior["feh0"]) ** 2
+    if np.isfinite(prior["feh0"]) and np.isfinite(feh_sigma) and feh_sigma > 0:
+        chi2 += ((feh - prior["feh0"]) / feh_sigma) ** 2
 
     if np.isfinite(prior["a0_gyr"]):
         age_gyr = (10.0 ** log10_age) / 1e9
         age_sigma = prior["sig_age_hi"] if age_gyr >= prior["a0_gyr"] else prior["sig_age_lo"]
-        chi2 += ((age_gyr - prior["a0_gyr"]) / age_sigma) ** 2
+        age_sigma = np.abs(age_sigma) if np.isfinite(age_sigma) else np.nan
+        if np.isfinite(age_sigma) and age_sigma > 0:
+            chi2 += ((age_gyr - prior["a0_gyr"]) / age_sigma) ** 2
 
     return float(chi2)
 
@@ -92,4 +96,3 @@ def summarize_chi_square(
     )
     chi2_reg = chi2_prior(mass=mass, log10_age=log10_age, feh=feh, prior=prior)
     return ChiSquareSummary(chi2_phot=chi2_data, chi2_prior=chi2_reg)
-
