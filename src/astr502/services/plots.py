@@ -114,7 +114,7 @@ def _save_age_scatter(
 
 def plot_observed_vs_table_age_scatter(
     catalog_csv: str | Path = DEFAULT_MEGA_CSV_PATH,
-    observed_csv: str | Path = OUTPUT_RESULTS_DIR / "interpolate_best_fit_results.csv",
+    observed_csv: str | Path = OUTPUT_RESULTS_DIR / "interpolate_20260414_161013_candidate_fits.csv",
     output_path: str | Path | None = None,
 ) -> Path:
     """Plot fractional age residuals vs. table age for targets with both age values.
