@@ -39,6 +39,7 @@ src/astr502/
     fit_runtime.py    # single-target + batch runtime wrappers
     plots.py          # observed-vs-table age scatter plotting
     gyro.py           # compare fitted ages against Kepler ages
+    regress.py        # linear regression of interpolated vs Kepler ages
 
 scripts/
   fit_single_star.py  # CLI wrapper for one hostname
@@ -116,10 +117,12 @@ These are under `src/astr502/services` and can be run directly:
 ```bash
 python src/astr502/services/plots.py
 python src/astr502/services/gyro.py
+python src/astr502/services/regress.py
 ```
 
 - `plots.py` generates observed-vs-table age scatter plots in `outputs/figs/`.
 - `gyro.py` compares recent fit ages against Kepler & K2 gyrochronology ages.
+- `regress.py` regresses latest interpolated ages against Kepler, K2, or an external comparison CSV and writes a best-fit plot (red=result ages, blue=comparison ages).
 
 ## Maintainers
 
