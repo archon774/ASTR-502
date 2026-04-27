@@ -181,7 +181,7 @@ def _plot_regression(
     # Comparison ages shown on y=x as blue reference points.
     ax.scatter(x_comparison_age_gyr, x_comparison_age_gyr, c="blue", s=26, alpha=0.7, label=f"{comparison_label} ages")
     # Results ages at y=interpolated_age as red points.
-    ax.scatter(x_comparison_age_gyr, y_results_age_gyr, c="red", s=28, alpha=0.8, label="Results ages")
+    ax.scatter(x_comparison_age_gyr, y_results_age_gyr, c="red", s=28, alpha=0.5, label="Results ages")
     ax.plot(x_line, y_fit_line, c="black", linewidth=2.0, label="Best fit line")
 
     ax.set_xlabel(f"{comparison_label} age (Gyr)")
@@ -288,7 +288,7 @@ def _build_cli() -> argparse.ArgumentParser:
     parser.add_argument(
         "--comparison-source",
         choices=("kepler", "k2", "external"),
-        default="kepler",
+        default="k2",
         help="Comparison age source.",
     )
     parser.add_argument(
