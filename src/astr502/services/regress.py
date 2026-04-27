@@ -5,12 +5,14 @@ import math
 import re
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 KEPLER_AGES = REPO_ROOT / "data" / "raw" / "catalogs" / "kepler_star_ages.csv"
 OUTPUT_RESULTS_DIR = REPO_ROOT / "outputs" / "results"
+OUTPUT_FIGS_DIR = REPO_ROOT / "outputs" / "figs"
 
 
 def _extract_first_float(raw: str | None) -> float | None:
@@ -113,6 +115,88 @@ def regress_interpolated_vs_kepler_ages(results_csv: Path | None = None) -> dict
     }
 
 
+def plot_interpolated_vs_kepler_regression(
+    results_csv: Path | None = None,
+    output_path: Path | None = None,
+) -> tuple[dict[str, float], Path]:
+    """Create a scatter plot with best-fit line for interpolated vs Kepler ages."""
+    results_path = results_csv or _latest_candidate_results_file(OUTPUT_RESULTS_DIR)
+    output_path = output_path or (
+        OUTPUT_FIGS_DIR / f"{results_path.stem}_vs_kepler_best_fit.png"
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    kepler_age_by_tic = _load_kepler_ages()
+
+    x_kepler_age_gyr: list[float] = []
+    y_interp_age_gyr: list[float] = []
+
+    with results_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            tic_id = (row.get("tic_id") or row.get("tic_ids") or "").strip()
+            age_yr = _extract_first_float(row.get("age_yr"))
+            if not tic_id or age_yr is None or not math.isfinite(age_yr):
+                continue
+
+            kepler_age_gyr = kepler_age_by_tic.get(tic_id)
+            if kepler_age_gyr is None or not math.isfinite(kepler_age_gyr):
+                continue
+
+            x_kepler_age_gyr.append(kepler_age_gyr)
+            y_interp_age_gyr.append(age_yr / 1e9)
+
+    if len(x_kepler_age_gyr) < 2:
+        raise ValueError(
+            "Need at least two overlapping stars between latest interpolation results and kepler_star_ages.csv."
+        )
+
+    regression = regress_interpolated_vs_kepler_ages(results_csv=results_path)
+    slope = regression["slope"]
+    intercept = regression["intercept_gyr"]
+
+    x_min = min(x_kepler_age_gyr)
+    x_max = max(x_kepler_age_gyr)
+    fit_x = [x_min, x_max]
+    fit_y = [slope * xi + intercept for xi in fit_x]
+
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ax.scatter(
+        x_kepler_age_gyr,
+        y_interp_age_gyr,
+        s=22,
+        alpha=0.8,
+        label=f"Overlapping targets (n={int(regression['n_overlap'])})",
+    )
+    ax.plot(
+        fit_x,
+        fit_y,
+        color="crimson",
+        linewidth=2,
+        label="Best-fit line",
+    )
+    ax.set_xlabel("Kepler st_age (Gyr)")
+    ax.set_ylabel("Interpolated age (Gyr)")
+    ax.set_title("Interpolated vs Kepler ages with linear best fit")
+    ax.grid(alpha=0.25)
+    ax.legend(loc="best")
+    ax.text(
+        0.02,
+        0.98,
+        f"y = {slope:.4f}x + {intercept:.4f}\nR² = {regression['r_squared']:.4f}\nRMSE = {regression['rmse_gyr']:.4f} Gyr",
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "0.8"},
+    )
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=200)
+    plt.close(fig)
+
+    return regression, output_path
+
+
 def _format_result(result: dict[str, float]) -> str:
     return (
         f"n={int(result['n_overlap'])}\n"
@@ -122,6 +206,7 @@ def _format_result(result: dict[str, float]) -> str:
 
 
 if __name__ == "__main__":
-    regression = regress_interpolated_vs_kepler_ages()
+    regression, saved_plot = plot_interpolated_vs_kepler_regression()
     print("Linear regression between latest interpolated ages and kepler_star_ages.csv")
     print(_format_result(regression))
+    print(f"Saved regression plot to: {saved_plot}")
