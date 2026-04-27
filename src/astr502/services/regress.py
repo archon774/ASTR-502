@@ -49,9 +49,10 @@ def _parse_results_ages(results_csv: Path) -> dict[str, float]:
     return results_age_by_tic
 
 
-def _parse_kepler_comparison_ages(kepler_catalog_csv: Path = KEPLER_AGES) -> dict[str, float]:
+def _parse_kepler_comparison_ages(kepler_catalog_csv: Path = KEPLER_AGES) -> tuple[dict[str, float], int]:
     """Parse Kepler catalog ages (Gyr) keyed by TIC ID without the TIC prefix."""
     tic_to_age_gyr: dict[str, float] = {}
+    invalid_or_nan_rows = 0
 
     with kepler_catalog_csv.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
@@ -59,14 +60,15 @@ def _parse_kepler_comparison_ages(kepler_catalog_csv: Path = KEPLER_AGES) -> dic
             tic_id = re.sub(r"^TIC\s*", "", (row.get("tic_ids") or "").strip(), flags=re.IGNORECASE)
             age_gyr = _extract_first_float(row.get("st_age"))
             if not tic_id or age_gyr is None or not math.isfinite(age_gyr):
+                invalid_or_nan_rows += 1
                 continue
 
             tic_to_age_gyr[tic_id] = age_gyr
 
-    return tic_to_age_gyr
+    return tic_to_age_gyr, invalid_or_nan_rows
 
 
-def _parse_k2_comparison_ages(k2_catalog_csv: Path | None = None) -> dict[str, float]:
+def _parse_k2_comparison_ages(k2_catalog_csv: Path | None = None) -> tuple[dict[str, float], int]:
     """Parse K2 catalog ages (Gyr) keyed by TIC ID without the TIC prefix.
 
     Prefers the explicitly provided path. If not provided, uses `k2_star_ages.csv` and
@@ -81,17 +83,19 @@ def _parse_k2_comparison_ages(k2_catalog_csv: Path | None = None) -> dict[str, f
         raise FileNotFoundError(f"K2 catalog file not found: {k2_catalog_csv}")
 
     tic_to_age_gyr: dict[str, float] = {}
+    invalid_or_nan_rows = 0
     with k2_catalog_csv.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
             tic_id = re.sub(r"^TIC\s*", "", (row.get("tic_ids") or "").strip(), flags=re.IGNORECASE)
             age_gyr = _extract_first_float(row.get("st_age"))
             if not tic_id or age_gyr is None or not math.isfinite(age_gyr):
+                invalid_or_nan_rows += 1
                 continue
 
             tic_to_age_gyr[tic_id] = age_gyr
 
-    return tic_to_age_gyr
+    return tic_to_age_gyr, invalid_or_nan_rows
 
 
 def _parse_external_comparison_ages(
@@ -99,9 +103,10 @@ def _parse_external_comparison_ages(
     tic_column: str,
     age_column: str,
     age_unit: str,
-) -> dict[str, float]:
+) -> tuple[dict[str, float], int]:
     """Parse external comparison ages (Gyr) keyed by TIC ID from user-specified columns."""
     tic_to_age_gyr: dict[str, float] = {}
+    invalid_or_nan_rows = 0
 
     unit_scale = 1e9 if age_unit == "yr" else 1.0
 
@@ -111,11 +116,12 @@ def _parse_external_comparison_ages(
             tic_id = re.sub(r"^TIC\s*", "", (row.get(tic_column) or "").strip(), flags=re.IGNORECASE)
             age_value = _extract_first_float(row.get(age_column))
             if not tic_id or age_value is None or not math.isfinite(age_value):
+                invalid_or_nan_rows += 1
                 continue
 
             tic_to_age_gyr[tic_id] = age_value / unit_scale
 
-    return tic_to_age_gyr
+    return tic_to_age_gyr, invalid_or_nan_rows
 
 
 def _fit_linear_regression(x_values: list[float], y_values: list[float]) -> dict[str, float]:
@@ -206,15 +212,15 @@ def regress_interpolated_ages(
     results_age_by_tic = _parse_results_ages(results_path)
 
     if comparison_source == "kepler":
-        comparison_age_by_tic = _parse_kepler_comparison_ages()
+        comparison_age_by_tic, comparison_invalid_or_nan_rows = _parse_kepler_comparison_ages()
         comparison_label = "Kepler"
     elif comparison_source == "k2":
-        comparison_age_by_tic = _parse_k2_comparison_ages()
+        comparison_age_by_tic, comparison_invalid_or_nan_rows = _parse_k2_comparison_ages()
         comparison_label = "K2"
     elif comparison_source == "external":
         if comparison_csv is None:
             raise ValueError("comparison_csv must be provided when comparison_source='external'.")
-        comparison_age_by_tic = _parse_external_comparison_ages(
+        comparison_age_by_tic, comparison_invalid_or_nan_rows = _parse_external_comparison_ages(
             comparison_csv=comparison_csv,
             tic_column=comparison_tic_column,
             age_column=comparison_age_column,
@@ -259,6 +265,7 @@ def regress_interpolated_ages(
     return {
         **regression,
         "comparison_source": comparison_source,
+        "comparison_invalid_or_nan_skipped": float(comparison_invalid_or_nan_rows),
         "results_csv": str(results_path),
         "plot_path": plot_path,
     }
@@ -268,6 +275,7 @@ def _format_result(result: dict[str, float | str]) -> str:
     source = str(result["comparison_source"])
     return (
         f"n={int(float(result['n_overlap']))}\n"
+        f"comparison invalid/NaN rows skipped={int(float(result['comparison_invalid_or_nan_skipped']))}\n"
         f"fit: interpolated_age_gyr = ({float(result['slope']):.4f}) * {source}_age_gyr + ({float(result['intercept_gyr']):.4f})\n"
         f"R^2={float(result['r_squared']):.4f}, RMSE={float(result['rmse_gyr']):.4f} Gyr\n"
         f"plot={result['plot_path']}"
