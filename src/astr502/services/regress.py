@@ -4,13 +4,8 @@ import csv
 import math
 import re
 from pathlib import Path
+from src.astr502.data.paths import KEPLER_AGES, OUTPUT_RESULTS_DIR
 
-
-
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-KEPLER_AGES = REPO_ROOT / "data" / "raw" / "catalogs" / "kepler_star_ages.csv"
-OUTPUT_RESULTS_DIR = REPO_ROOT / "outputs" / "results"
 
 
 def _extract_first_float(raw: str | None) -> float | None:
@@ -24,7 +19,7 @@ def _extract_first_float(raw: str | None) -> float | None:
 
     try:
         return float(match.group(0))
-    except ValueError:
+    except ValueError:\
         return None
 
 
