@@ -118,11 +118,13 @@ These are under `src/astr502/services` and can be run directly:
 python src/astr502/services/plots.py
 python src/astr502/services/gyro.py
 python src/astr502/services/regress.py
+python src/astr502/services/regress.py --comparison-source k2
+python src/astr502/services/regress.py --comparison-source external --comparison-csv path/to/comparison.csv
 ```
 
 - `plots.py` generates observed-vs-table age scatter plots in `outputs/figs/`.
 - `gyro.py` compares recent fit ages against Kepler & K2 gyrochronology ages.
-- `regress.py` computes a best-fit line between latest interpolated ages and `kepler_star_ages.csv`.
+- `regress.py` computes a best-fit line between latest interpolated ages and a selected comparison catalog (`kepler_star_ages.csv`, `k2_star_ages.csv`, or an external CSV with `tic_ids` and `st_age` columns).
 
 ## Maintainers
 

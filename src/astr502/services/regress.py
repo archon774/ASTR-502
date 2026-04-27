@@ -1,16 +1,12 @@
 from __future__ import annotations
 
+import argparse
 import csv
 import math
 import re
 from pathlib import Path
 
-
-
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-KEPLER_AGES = REPO_ROOT / "data" / "raw" / "catalogs" / "kepler_star_ages.csv"
-OUTPUT_RESULTS_DIR = REPO_ROOT / "outputs" / "results"
+from src.astr502.data.paths import K2_AGES, KEPLER_AGES, OUTPUT_RESULTS_DIR
 
 
 def _extract_first_float(raw: str | None) -> float | None:
@@ -36,11 +32,11 @@ def _latest_candidate_results_file(results_dir: Path) -> Path:
     return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
-def _load_kepler_ages(kepler_catalog_csv: Path = KEPLER_AGES) -> dict[str, float]:
-    """Load Kepler catalog st_age (Gyr) keyed by TIC ID without the TIC prefix."""
+def _load_comparison_ages(comparison_catalog_csv: Path) -> dict[str, float]:
+    """Load comparison st_age (Gyr) keyed by TIC ID without the TIC prefix."""
     tic_to_age_gyr: dict[str, float] = {}
 
-    with kepler_catalog_csv.open(newline="", encoding="utf-8") as handle:
+    with comparison_catalog_csv.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
             tic_id = re.sub(r"^TIC\s*", "", (row.get("tic_ids") or "").strip(), flags=re.IGNORECASE)
@@ -53,12 +49,16 @@ def _load_kepler_ages(kepler_catalog_csv: Path = KEPLER_AGES) -> dict[str, float
     return tic_to_age_gyr
 
 
-def regress_interpolated_vs_kepler_ages(results_csv: Path | None = None) -> dict[str, float]:
-    """Fit y = m*x + b where x=Kepler st_age (Gyr), y=interpolated age (Gyr)."""
+def regress_interpolated_vs_catalog_ages(
+    results_csv: Path | None = None,
+    comparison_csv: Path = KEPLER_AGES,
+    comparison_label: str = "Kepler",
+) -> dict[str, float]:
+    """Fit y = m*x + b where x=catalog st_age (Gyr), y=interpolated age (Gyr)."""
     results_path = results_csv or _latest_candidate_results_file(OUTPUT_RESULTS_DIR)
-    kepler_age_by_tic = _load_kepler_ages()
+    comparison_age_by_tic = _load_comparison_ages(comparison_csv)
 
-    x_kepler_age_gyr: list[float] = []
+    x_catalog_age_gyr: list[float] = []
     y_interp_age_gyr: list[float] = []
 
     with results_path.open(newline="", encoding="utf-8") as handle:
@@ -69,20 +69,20 @@ def regress_interpolated_vs_kepler_ages(results_csv: Path | None = None) -> dict
             if not tic_id or age_yr is None or not math.isfinite(age_yr):
                 continue
 
-            kepler_age_gyr = kepler_age_by_tic.get(tic_id)
-            if kepler_age_gyr is None or not math.isfinite(kepler_age_gyr):
+            catalog_age_gyr = comparison_age_by_tic.get(tic_id)
+            if catalog_age_gyr is None or not math.isfinite(catalog_age_gyr):
                 continue
 
             interp_age_gyr = age_yr / 1e9
-            x_kepler_age_gyr.append(kepler_age_gyr)
+            x_catalog_age_gyr.append(catalog_age_gyr)
             y_interp_age_gyr.append(interp_age_gyr)
 
-    if len(x_kepler_age_gyr) < 2:
+    if len(x_catalog_age_gyr) < 2:
         raise ValueError(
-            "Need at least two overlapping stars between latest interpolation results and kepler_star_ages.csv."
+            f"Need at least two overlapping stars between latest interpolation results and {comparison_csv.name}."
         )
 
-    x = x_kepler_age_gyr
+    x = x_catalog_age_gyr
     y = y_interp_age_gyr
 
     mean_x = sum(x) / len(x)
@@ -90,7 +90,7 @@ def regress_interpolated_vs_kepler_ages(results_csv: Path | None = None) -> dict
 
     sxx = sum((xi - mean_x) ** 2 for xi in x)
     if sxx == 0:
-        raise ValueError("Kepler ages have zero variance; linear regression is undefined.")
+        raise ValueError(f"{comparison_label} ages have zero variance; linear regression is undefined.")
 
     sxy = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, y))
     slope = sxy / sxx
@@ -110,18 +110,74 @@ def regress_interpolated_vs_kepler_ages(results_csv: Path | None = None) -> dict
         "intercept_gyr": float(intercept),
         "r_squared": float(r_squared),
         "rmse_gyr": rmse,
+        "comparison_csv": str(comparison_csv),
+        "comparison_label": comparison_label,
     }
 
 
+def regress_interpolated_vs_kepler_ages(results_csv: Path | None = None) -> dict[str, float]:
+    """Backward-compatible wrapper using kepler_star_ages.csv for comparison."""
+    return regress_interpolated_vs_catalog_ages(
+        results_csv=results_csv,
+        comparison_csv=KEPLER_AGES,
+        comparison_label="Kepler",
+    )
+
+
 def _format_result(result: dict[str, float]) -> str:
+    comparison_label = str(result.get("comparison_label", "Catalog"))
     return (
         f"n={int(result['n_overlap'])}\n"
-        f"fit: interpolated_age_gyr = ({result['slope']:.4f}) * kepler_st_age_gyr + ({result['intercept_gyr']:.4f})\n"
+        f"fit: interpolated_age_gyr = ({result['slope']:.4f}) * {comparison_label.lower()}_st_age_gyr + ({result['intercept_gyr']:.4f})\n"
         f"R^2={result['r_squared']:.4f}, RMSE={result['rmse_gyr']:.4f} Gyr"
     )
 
 
+def _build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Linear regression between interpolated ages and a comparison age catalog "
+            "(Kepler, K2, or user-provided CSV)."
+        )
+    )
+    parser.add_argument(
+        "--results-csv",
+        type=Path,
+        default=None,
+        help="Optional path to interpolate_*_candidate_fits.csv. Defaults to latest in outputs/results.",
+    )
+    parser.add_argument(
+        "--comparison-source",
+        choices=["kepler", "k2", "external"],
+        default="kepler",
+        help="Which comparison catalog to use for st_age values.",
+    )
+    parser.add_argument(
+        "--comparison-csv",
+        type=Path,
+        default=None,
+        help="Path to external comparison CSV when --comparison-source=external.",
+    )
+    return parser
+
+
+def _resolve_comparison_csv(comparison_source: str, external_csv: Path | None) -> tuple[Path, str]:
+    if comparison_source == "kepler":
+        return KEPLER_AGES, "Kepler"
+    if comparison_source == "k2":
+        return K2_AGES, "K2"
+    if external_csv is None:
+        raise ValueError("When --comparison-source=external, you must supply --comparison-csv.")
+    return external_csv, "External"
+
+
 if __name__ == "__main__":
-    regression = regress_interpolated_vs_kepler_ages()
-    print("Linear regression between latest interpolated ages and kepler_star_ages.csv")
+    args = _build_arg_parser().parse_args()
+    comparison_csv, comparison_label = _resolve_comparison_csv(args.comparison_source, args.comparison_csv)
+    regression = regress_interpolated_vs_catalog_ages(
+        results_csv=args.results_csv,
+        comparison_csv=comparison_csv,
+        comparison_label=comparison_label,
+    )
+    print(f"Linear regression between latest interpolated ages and {comparison_csv.name} ({comparison_label})")
     print(_format_result(regression))
