@@ -122,7 +122,7 @@ python src/astr502/services/regress.py
 
 - `plots.py` generates observed-vs-table age scatter plots in `outputs/figs/`.
 - `gyro.py` compares recent fit ages against Kepler & K2 gyrochronology ages.
-- `regress.py` computes a best-fit line between latest interpolated ages and `kepler_star_ages.csv`.
+- `regress.py` regresses latest interpolated ages against Kepler, K2, or an external comparison CSV and writes a best-fit plot (red=result ages, blue=comparison ages).
 
 ## Maintainers
 
