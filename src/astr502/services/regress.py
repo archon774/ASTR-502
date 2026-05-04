@@ -33,20 +33,21 @@ def _latest_candidate_results_file(results_dir: Path) -> Path:
 
 
 def _parse_results_ages(results_csv: Path) -> dict[str, float]:
-    """Parse interpolated ages (Gyr) from candidate results keyed by TIC ID."""
-    results_age_by_tic: dict[str, float] = {}
+    """Parse interpolated ages (Gyr) from latest run keyed by TIC ID or hostname."""
+    results_age_by_key: dict[str, float] = {}
 
     with results_csv.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
-            tic_id = (row.get("tic_id") or row.get("tic_ids") or "").strip()
+            object_key = (row.get("tic_id") or row.get("tic_ids") or row.get("hostname") or "").strip()
             age_yr = _extract_first_float(row.get("age_yr"))
-            if not tic_id or age_yr is None or not math.isfinite(age_yr):
+            if not object_key or age_yr is None or not math.isfinite(age_yr):
                 continue
 
-            results_age_by_tic[tic_id] = age_yr / 1e9
+            normalized_key = re.sub(r"^TIC\s*", "", object_key, flags=re.IGNORECASE)
+            results_age_by_key[normalized_key] = age_yr / 1e9
 
-    return results_age_by_tic
+    return results_age_by_key
 
 
 def _parse_kepler_comparison_ages(kepler_catalog_csv: Path = KEPLER_AGES) -> tuple[dict[str, float], int]:
@@ -104,8 +105,8 @@ def _parse_external_comparison_ages(
     age_column: str,
     age_unit: str,
 ) -> tuple[dict[str, float], int]:
-    """Parse external comparison ages (Gyr) keyed by TIC ID from user-specified columns."""
-    tic_to_age_gyr: dict[str, float] = {}
+    """Parse external comparison ages (Gyr) keyed by user-specified ID column."""
+    key_to_age_gyr: dict[str, float] = {}
     invalid_or_nan_rows = 0
 
     unit_scale = 1e9 if age_unit == "yr" else 1.0
@@ -113,15 +114,15 @@ def _parse_external_comparison_ages(
     with comparison_csv.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
-            tic_id = re.sub(r"^TIC\s*", "", (row.get(tic_column) or "").strip(), flags=re.IGNORECASE)
+            object_key = re.sub(r"^TIC\s*", "", (row.get(tic_column) or "").strip(), flags=re.IGNORECASE)
             age_value = _extract_first_float(row.get(age_column))
-            if not tic_id or age_value is None or not math.isfinite(age_value):
+            if not object_key or age_value is None or not math.isfinite(age_value):
                 invalid_or_nan_rows += 1
                 continue
 
-            tic_to_age_gyr[tic_id] = age_value / unit_scale
+            key_to_age_gyr[object_key] = age_value / unit_scale
 
-    return tic_to_age_gyr, invalid_or_nan_rows
+    return key_to_age_gyr, invalid_or_nan_rows
 
 
 def _fit_linear_regression(x_values: list[float], y_values: list[float]) -> dict[str, float]:
@@ -294,17 +295,17 @@ def _build_cli() -> argparse.ArgumentParser:
     parser.add_argument(
         "--comparison-csv",
         type=Path,
-        default="Users/archon",
+        default=OUTPUT_RESULTS_DIR / "hw_interpolator_results.csv",
         help="External comparison CSV path (required for --comparison-source external).",
     )
     parser.add_argument(
         "--comparison-tic-column",
-        default="tic_id",
+        default="hostname",
         help="TIC column name in external comparison CSV.",
     )
     parser.add_argument(
         "--comparison-age-column",
-        default="age_gyr",
+        default="st_age_gyr_measured",
         help="Age column name in external comparison CSV.",
     )
     parser.add_argument(
