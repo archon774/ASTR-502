@@ -288,13 +288,13 @@ def _build_cli() -> argparse.ArgumentParser:
     parser.add_argument(
         "--comparison-source",
         choices=("kepler", "k2", "external"),
-        default="k2",
+        default="external",
         help="Comparison age source.",
     )
     parser.add_argument(
         "--comparison-csv",
         type=Path,
-        default=None,
+        default="Users/archon",
         help="External comparison CSV path (required for --comparison-source external).",
     )
     parser.add_argument(
